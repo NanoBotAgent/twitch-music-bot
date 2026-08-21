@@ -392,7 +392,7 @@ impl QueueManager {
         let _ = self.overlay_tx.send(OverlayMessage::new(
             streamer_id,
             OverlayEvent::NowPlaying {
-                song: song.song.clone(),
+                song: Box::new(song.song.clone()),
                 requested_by: song.requester_name.clone(),
             },
         ));

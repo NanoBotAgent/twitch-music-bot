@@ -110,7 +110,7 @@ impl OverlayMessage {
 #[serde(rename_all = "snake_case")]
 pub enum OverlayEvent {
     NowPlaying {
-        song: Song,
+        song: Box<Song>,
         requested_by: String,
     },
     SongEnded {
