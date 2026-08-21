@@ -17,6 +17,7 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::{database, metrics};
+use twitch_music_shared::OverlayMessage;
 
 /// Shared hub that fans queue events out to all overlay connections.
 pub struct OverlayHub {

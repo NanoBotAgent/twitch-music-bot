@@ -5,6 +5,8 @@ use std::time::Duration;
 use tracing::{debug, warn};
 use url::Url;
 
+use uuid::Uuid;
+
 use crate::config::Settings;
 use twitch_music_shared::*;
 

@@ -638,7 +638,7 @@ pub mod queue {
         .bind(streamer_id)
         .fetch_optional(pool)
         .await?;
-        Ok(r.map(row))
+        Ok(r)
     }
 
     pub async fn remove_item(pool: &PgPool, queue_item_id: Uuid) -> anyhow::Result<bool> {

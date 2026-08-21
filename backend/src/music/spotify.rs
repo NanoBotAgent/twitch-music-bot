@@ -9,6 +9,8 @@ use sqlx::PgPool;
 use tracing::debug;
 use url::Url;
 
+use uuid::Uuid;
+
 use crate::config::Settings;
 use crate::utils::crypto;
 use twitch_music_shared::*;
