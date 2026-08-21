@@ -165,6 +165,7 @@ pub struct ChatCommand {
     pub user: TwitchUser,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, thiserror::Error)]
 pub enum BotError {
     #[error("Database error: {0}")]
