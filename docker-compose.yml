@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: twitch-music-postgres
+    environment:
+      POSTGRES_DB: twitch_music_bot
+      POSTGRES_USER: twitch_music
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twitch_music -d twitch_music_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: twitch-music-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: twitch-music-backend
+    environment:
+      - APP__SERVER__HOST=0.0.0.0
+      - APP__SERVER__PORT=8080
+      - APP__DATABASE__URL=postgresql://twitch_music:${POSTGRES_PASSWORD:-changeme}@postgres:5432/twitch_music_bot
+      - APP__REDIS__URL=redis://redis:6379
+      - APP__TWITCH__CLIENT_ID=${TWITCH_CLIENT_ID}
+      - APP__TWITCH__CLIENT_SECRET=${TWITCH_CLIENT_SECRET}
+      - APP__TWITCH__BOT_OAUTH_TOKEN=${TWITCH_BOT_OAUTH_TOKEN}
+      - APP__TWITCH__BOT_USERNAME=${TWITCH_BOT_USERNAME:-musicbot}
+      - APP__TWITCH__REDIRECT_URI=${TWITCH_REDIRECT_URI}
+      - APP__SPOTIFY__CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - APP__SPOTIFY__CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+      - APP__SPOTIFY__REDIRECT_URI=${SPOTIFY_REDIRECT_URI}
+      - APP__SOUNDCLOUD__CLIENT_ID=${SOUNDCLOUD_CLIENT_ID}
+      - APP__SECURITY__JWT_SECRET=${JWT_SECRET}
+      - APP__SECURITY__ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - APP__SECURITY__CORS_ALLOWED_ORIGINS=["https://your-domain.vercel.app","http://localhost:3000"]
+      - APP__LOGGING__LEVEL=info
+      - APP__LOGGING__FORMAT=json
+      - APP__METRICS__ENABLED=true
+      - APP__METRICS__PORT=9090
+      - FRONTEND_URL=https://your-domain.vercel.app
+      - ENVIRONMENT=production
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: twitch-music-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: twitch-music-network

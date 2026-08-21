@@ -1,0 +1,52 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Node
+/node_modules
+/frontend/.next
+/frontend/out
+/frontend/build
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+config/local.toml
+config/production.toml
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Docker
+docker-compose.override.yml
+
+# Test coverage
+coverage/
+*.lcov
+
+# Build artifacts
+dist/
+build/
+*.tar.gz
+
+# Overlay build
+overlay/dist/

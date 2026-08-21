@@ -1,0 +1,52 @@
+[Unit]
+Description=Twitch Music Bot
+Documentation=https://github.com/yourusername/twitch-music-bot
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=twitchmusic
+Group=twitchmusic
+WorkingDirectory=/opt/twitch-music-bot
+ExecStart=/opt/twitch-music-bot/twitch-music-bot
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Environment
+Environment=CONFIG_PATH=/opt/twitch-music-bot/config
+Environment=ENVIRONMENT=production
+EnvironmentFile=-/opt/twitch-music-bot/.env
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/twitch-music-bot /var/log/twitch-music-bot
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RemoveIPC=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryMax=512M
+CPUQuota=200%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=twitch-music-bot
+
+[Install]
+WantedBy=multi-user.target

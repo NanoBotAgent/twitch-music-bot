@@ -1,0 +1,95 @@
+# Production configuration template
+# Copy to config/production.toml and fill in values
+# Or use environment variables (APP__SECTION__KEY)
+
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 8
+request_timeout_seconds = 30
+body_limit_mb = 10
+
+[database]
+url = "postgresql://twitch_music:${POSTGRES_PASSWORD}@postgres:5432/twitch_music_bot"
+max_connections = 20
+min_connections = 5
+connect_timeout_seconds = 10
+idle_timeout_seconds = 300
+run_migrations = true
+
+[redis]
+url = "redis://redis:6379"
+max_connections = 50
+connection_timeout_seconds = 5
+command_timeout_seconds = 10
+
+[twitch]
+client_id = "${TWITCH_CLIENT_ID}"
+client_secret = "${TWITCH_CLIENT_SECRET}"
+redirect_uri = "${TWITCH_REDIRECT_URI}"
+scopes = ["chat:read", "chat:edit", "channel:manage:broadcast", "user:read:email"]
+bot_username = "${TWITCH_BOT_USERNAME}"
+bot_oauth_token = "${TWITCH_BOT_OAUTH_TOKEN}"
+irc_reconnect_interval_seconds = 10
+irc_ping_interval_seconds = 60
+
+[spotify]
+client_id = "${SPOTIFY_CLIENT_ID}"
+client_secret = "${SPOTIFY_CLIENT_SECRET}"
+redirect_uri = "${SPOTIFY_REDIRECT_URI}"
+scopes = ["user-read-email", "user-read-private", "playlist-read-private", "playlist-read-collaborative"]
+api_base_url = "https://api.spotify.com/v1"
+rate_limit_per_second = 20
+
+[youtube]
+invidious_instances = [
+  "https://yewtu.be",
+  "https://inv.nadeko.net",
+  "https://invidious.snopyta.org",
+  "https://invidious.nerdvpn.de",
+  "https://invidious.projectsegfau.lt"
+]
+piped_instances = [
+  "https://pipedapi.kavin.rocks",
+  "https://piped-api.garudalinux.org",
+  "https://piped.mha.fi",
+  "https://piped.kavin.rocks"
+]
+fallback_to_ytdlp = true
+ytdlp_path = "/usr/local/bin/yt-dlp"
+request_timeout_seconds = 15
+max_retries = 3
+preferred_quality = "audio_only"
+
+[soundcloud]
+client_id = "${SOUNDCLOUD_CLIENT_ID}"
+api_base_url = "https://api-v2.soundcloud.com"
+rate_limit_per_second = 10
+
+[overlay]
+ws_path = "/ws/overlay"
+ping_interval_seconds = 30
+max_message_size = 65536
+reconnect_interval_seconds = 5
+allowed_origins = ["https://your-domain.vercel.app"]
+
+[security]
+jwt_secret = "${JWT_SECRET}"
+jwt_expiry_hours = 24
+encryption_key = "${ENCRYPTION_KEY}"
+cors_allowed_origins = ["https://your-domain.vercel.app"]
+rate_limit_requests_per_minute = 120
+rate_limit_burst = 20
+
+[logging]
+level = "info"
+format = "json"
+json_output = true
+file_path = "/var/log/twitch-music-bot/app.log"
+max_file_size_mb = 100
+max_files = 30
+
+[metrics]
+enabled = true
+path = "/metrics"
+port = 9090

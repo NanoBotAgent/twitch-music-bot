@@ -1,0 +1,91 @@
+# Default configuration for Twitch Music Bot
+# Override with environment variables (APP__SECTION__KEY) or config/local.toml
+
+[server]
+host = "0.0.0.0"
+port = 8080
+workers = 4
+request_timeout_seconds = 30
+body_limit_mb = 10
+
+[database]
+url = "postgresql://localhost/twitch_music_bot"
+max_connections = 10
+min_connections = 2
+connect_timeout_seconds = 10
+idle_timeout_seconds = 300
+run_migrations = true
+
+[redis]
+url = "redis://localhost:6379"
+max_connections = 20
+connection_timeout_seconds = 5
+command_timeout_seconds = 10
+
+[twitch]
+client_id = ""
+client_secret = ""
+redirect_uri = "http://localhost:3000/auth/twitch/callback"
+scopes = ["chat:read", "chat:edit", "channel:manage:broadcast", "user:read:email"]
+bot_username = "musicbot"
+bot_oauth_token = ""
+irc_reconnect_interval_seconds = 10
+irc_ping_interval_seconds = 60
+
+[spotify]
+client_id = ""
+client_secret = ""
+redirect_uri = "http://localhost:3000/auth/spotify/callback"
+scopes = ["user-read-email", "user-read-private", "playlist-read-private", "playlist-read-collaborative"]
+api_base_url = "https://api.spotify.com/v1"
+rate_limit_per_second = 10
+
+[youtube]
+invidious_instances = [
+  "https://yewtu.be",
+  "https://inv.nadeko.net",
+  "https://invidious.snopyta.org"
+]
+piped_instances = [
+  "https://pipedapi.kavin.rocks",
+  "https://piped-api.garudalinux.org"
+]
+fallback_to_ytdlp = true
+ytdlp_path = ""
+request_timeout_seconds = 15
+max_retries = 3
+preferred_quality = "audio_only"
+
+[soundcloud]
+client_id = ""
+api_base_url = "https://api-v2.soundcloud.com"
+rate_limit_per_second = 5
+
+[overlay]
+ws_path = "/ws/overlay"
+ping_interval_seconds = 30
+max_message_size = 65536
+reconnect_interval_seconds = 5
+allowed_origins = ["*"]
+
+[security]
+jwt_secret = "change-me-in-production-32-bytes!!"
+jwt_expiry_hours = 24
+refresh_token_days = 30
+encryption_key = "32-byte-encryption-key-change-me!!"
+cors_allowed_origins = ["http://localhost:3000", "https://*.vercel.app"]
+rate_limit_requests_per_minute = 60
+rate_limit_burst = 10
+
+[logging]
+level = "info"
+format = "json"
+json_output = true
+file_path = ""
+max_file_size_mb = 100
+max_files = 10
+
+[metrics]
+enabled = true
+path = "/metrics"
+port = 9090
