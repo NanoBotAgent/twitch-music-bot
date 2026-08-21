@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::config::Settings;
 use crate::database;
+use crate::metrics;
 use crate::music::MusicManager;
 use twitch_music_shared::*;
 
@@ -254,7 +255,7 @@ impl QueueManager {
     }
 
     async fn is_duplicate(&self, streamer_id: Uuid, source_id: &str) -> anyhow::Result<bool> {
-        let row: Option<(i64,)> = sqlx::query_as(
+        let row: Option<(i64,)> = sqlx::query_as::<_, (i64,)>(
             "SELECT COUNT(*) FROM queue_items q JOIN songs s ON s.id = q.song_id \
              WHERE q.streamer_id = $1 AND s.source_id = $2 AND q.status IN ('pending', 'playing')",
         )
@@ -322,7 +323,7 @@ impl QueueManager {
 
         // started_at is tracked through play_history.started_at.
         let history_id = *self.current_history_id.read().await;
-        let started_at: Option<(DateTime<Utc>,)> = sqlx::query_as(
+        let started_at: Option<(DateTime<Utc>,)> = sqlx::query_as::<_, (DateTime<Utc>,)>(
             "SELECT started_at FROM play_history WHERE id = $1",
         )
         .bind(history_id.unwrap_or_else(Uuid::nil))

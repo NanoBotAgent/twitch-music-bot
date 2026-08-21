@@ -46,6 +46,7 @@ pub struct AuthUser {
     pub streamer_id: Uuid,
 }
 
+#[axum::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for AuthUser
 where
     S: Send + Sync,

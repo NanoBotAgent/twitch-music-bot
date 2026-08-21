@@ -105,7 +105,7 @@ async fn handle_overlay_socket(socket: WebSocket, streamer_id: Uuid, hub: Arc<Ov
 }
 
 async fn active_count(pool: &PgPool) -> usize {
-    let row: Option<(i64,)> = sqlx::query_as(
+    let row: Option<(i64,)> = sqlx::query_as::<_, (i64,)>(
         "SELECT COUNT(*) FROM overlay_connections WHERE disconnected_at IS NULL",
     )
     .fetch_one(pool)

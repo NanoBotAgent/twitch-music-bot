@@ -9,6 +9,7 @@ use twitch_irc::message::{PrivmsgMessage, ServerMessage};
 use twitch_irc::transport::tcp::{TCPTransport, TLS};
 use twitch_irc::TwitchIRCClient;
 
+use crate::metrics;
 use crate::queue::QueueManager;
 use twitch_music_shared::*;
 

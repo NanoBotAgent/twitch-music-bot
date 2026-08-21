@@ -251,7 +251,7 @@ pub mod oauth {
     /// Returns None if unknown or expired.
     pub async fn take_state(pool: &PgPool, state_token: &str) -> anyhow::Result<Option<JsonValue>> {
         let mut tx = pool.begin().await?;
-        let row: Option<(JsonValue)> = sqlx::query_as(
+        let row: Option<JsonValue> = sqlx::query_as::<_, JsonValue>(
             "SELECT state_data FROM oauth_states WHERE state_token = $1 AND expires_at > NOW() FOR UPDATE",
         )
         .bind(state_token)
@@ -578,7 +578,7 @@ pub mod queue {
     }
 
     pub async fn last_request_time(pool: &PgPool, streamer_id: Uuid, twitch_user_id: &str) -> anyhow::Result<Option<DateTime<Utc>>> {
-        let r: Option<(DateTime<Utc>,)> = sqlx::query_as(
+        let r: Option<(DateTime<Utc>,)> = sqlx::query_as::<_, (DateTime<Utc>,)>(
             "SELECT MAX(requested_at) FROM queue_items WHERE streamer_id = $1 AND requested_by_user_id = $2",
         )
         .bind(streamer_id)
@@ -796,7 +796,7 @@ pub mod votes {
     }
 
     pub async fn has_voted(pool: &PgPool, queue_item_id: Uuid, twitch_user_id: &str) -> anyhow::Result<bool> {
-        let r: Option<(Uuid,)> = sqlx::query_as(
+        let r: Option<(Uuid,)> = sqlx::query_as::<_, (Uuid,)>(
             "SELECT id FROM vote_skips WHERE queue_item_id = $1 AND voter_user_id = $2",
         )
         .bind(queue_item_id)
@@ -831,7 +831,7 @@ pub mod blocked_users {
     use super::*;
 
     pub async fn is_blocked(pool: &PgPool, streamer_id: Uuid, twitch_user_id: &str) -> anyhow::Result<bool> {
-        let r: Option<(Uuid,)> = sqlx::query_as(
+        let r: Option<(Uuid,)> = sqlx::query_as::<_, (Uuid,)>(
             "SELECT id FROM blocked_users \
              WHERE streamer_id = $1 AND user_id = $2 AND (expires_at IS NULL OR expires_at > NOW())",
         )

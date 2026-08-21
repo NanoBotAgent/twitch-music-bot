@@ -33,7 +33,7 @@ pub struct SoundCloudClient {
     api_base_url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(default)]
 struct ScTrack {
     id: u64,
@@ -48,7 +48,7 @@ struct ScTrack {
     media: Option<ScMedia>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 struct ScUser {
     #[serde(default)]
     username: String,
@@ -56,13 +56,13 @@ struct ScUser {
     avatar_url: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 struct ScMedia {
     #[serde(default)]
     transcodings: Vec<ScTranscoding>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 struct ScTranscoding {
     #[serde(default)]
     url: String,
@@ -72,7 +72,7 @@ struct ScTranscoding {
     quality: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 struct ScFormat {
     #[serde(default)]
     protocol: String,

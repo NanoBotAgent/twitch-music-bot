@@ -42,9 +42,7 @@ impl<T> ApiResponse<T> {
     pub fn ok(data: T) -> Self {
         Self { success: true, data: Some(data), error: None }
     }
-}
 
-impl ApiResponse<()> {
     pub fn err(code: &str, message: &str) -> Self {
         Self {
             success: false,
@@ -322,7 +320,7 @@ async fn get_stream_url(
 
 async fn has_playback_context(pool: &PgPool, streamer_id: Uuid, song_id: Uuid) -> anyhow::Result<bool> {
     // Currently queued or playing?
-    let row: Option<(i64,)> = sqlx::query_as(
+    let row: Option<(i64,)> = sqlx::query_as::<_, (i64,)>(
         "SELECT COUNT(*) FROM queue_items WHERE streamer_id = $1 AND song_id = $2 AND status IN ('pending', 'playing')",
     )
     .bind(streamer_id)
@@ -335,7 +333,7 @@ async fn has_playback_context(pool: &PgPool, streamer_id: Uuid, song_id: Uuid) -
     }
 
     // Recently played?
-    let row: Option<(i64,)> = sqlx::query_as(
+    let row: Option<(i64,)> = sqlx::query_as::<_, (i64,)>(
         "SELECT COUNT(*) FROM play_history WHERE streamer_id = $1 AND song_id = $2",
     )
     .bind(streamer_id)
