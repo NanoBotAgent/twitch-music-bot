@@ -55,7 +55,7 @@ struct SpotifyAlbum {
     images: Vec<SpotifyImage>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 struct SpotifyTrack {
     id: String,
     #[serde(default)]
@@ -93,8 +93,8 @@ impl SpotifyClient {
         Ok(Self {
             http,
             pool,
-            client_id: settings.spotify_client_id(),
-            client_secret: settings.spotify_client_secret(),
+            client_id: settings.spotify_client_id().to_string(),
+            client_secret: settings.spotify_client_secret().to_string(),
             aes_key: None,
         })
     }

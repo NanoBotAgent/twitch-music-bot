@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::auth::{auth_state_injector, AuthUser, AuthState};
 use crate::config::Settings;
 use crate::database;
-use crate::middleware::{ip_rate_limit, RateLimitBucket};
+use crate::middleware::search_rate_limit;
 use crate::music::MusicManager;
 use crate::queue::QueueManager;
 
@@ -509,10 +509,7 @@ pub fn create_api_router(
     api_state: Arc<ApiState>,
     auth_state: Arc<AuthState>,
 ) -> Router {
-    let search_bucket =
-        Arc::new(RateLimitBucket { name: "search", max_requests: 30, window_seconds: 60 });
-
-    let protected = Router::new()
+        let protected = Router::new()
         .route("/queue", get(get_queue))
         .route("/queue/current", get(get_current_song))
         .route("/queue/clear", post(clear_queue))
@@ -521,7 +518,7 @@ pub fn create_api_router(
         .route("/queue/:id/skip", post(skip_song))
         .route("/requests", post(add_request))
         .route("/history", get(get_history))
-        .route("/search", get(search_songs).layer(middleware::from_fn_with_state(search_bucket.clone(), ip_rate_limit)))
+        .route("/search", get(search_songs).layer(middleware::from_fn(search_rate_limit)))
         .route("/songs/:id/stream-url", get(get_stream_url))
         .route("/config", get(get_config).put(update_streamer_config))
         .route("/blocked-users", get(list_blocked_users).post(block_user))

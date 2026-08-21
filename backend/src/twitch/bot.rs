@@ -33,8 +33,8 @@ impl TwitchBot {
         notification_tx: mpsc::Sender<crate::queue::QueueNotification>,
     ) -> anyhow::Result<(IrcClient, tokio::task::JoinHandle<()>)> {
         let config = twitch_irc::ClientConfig {
-            login_name: format!("justinfan{}", 10_000 + rand::random::<u32>() % 80_000),
-            ..twitch_irc::ClientConfig::new()
+            login_credentials: StaticLoginCredentials::anonymous(),
+            ..twitch_irc::ClientConfig::default()
         };
 
         let (mut incoming_msgs, client) =
@@ -58,8 +58,8 @@ impl TwitchBot {
                             debug!("privmsg handling failed: {e:#}");
                         }
                     }
-                    ServerMessage::Ready(ready) => {
-                        info!("Connected to Twitch as {}", ready.twitch_name);
+                    ServerMessage::Join(join) => {
+                        info!("Bot joined #{}", join.channel_login);
                     }
                     _ => {}
                 }

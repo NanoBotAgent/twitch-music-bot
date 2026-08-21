@@ -33,9 +33,7 @@ use crate::twitch::bot::TwitchBot;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    color_eyre::install().ok();
-
-    let settings = Arc::new(Settings::load()?);
+        let settings = Arc::new(Settings::new()?);
 
     // Refuse to run with insecure placeholder secrets.
     if let Err(reason) = settings.security.validate() {

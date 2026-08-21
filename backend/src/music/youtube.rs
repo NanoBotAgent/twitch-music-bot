@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::config::Settings;
 use twitch_music_shared::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct YouTubeClient {
     client: Client,
     invidious_instances: Vec<String>,
@@ -129,14 +129,14 @@ impl YouTubeClient {
     fn get_invidious_url(&self) -> anyhow::Result<&str> {
         self.invidious_instances
             .get(self.current_invidious.load(std::sync::atomic::Ordering::Relaxed) % self.invidious_instances.len().max(1))
-            .copied()
+            .map(String::as_str)
             .ok_or_else(|| anyhow::anyhow!("no Invidious instances configured"))
     }
 
     fn get_piped_url(&self) -> anyhow::Result<&str> {
         self.piped_instances
             .get(self.current_piped.load(std::sync::atomic::Ordering::Relaxed) % self.piped_instances.len().max(1))
-            .copied()
+            .map(String::as_str)
             .ok_or_else(|| anyhow::anyhow!("no Piped instances configured"))
     }
 

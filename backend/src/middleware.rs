@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use axum::{
-    extract::{Request, State},
+    extract::{ConnectInfo, Request},
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
@@ -13,36 +13,25 @@ use chrono::{DateTime, Duration, Utc};
 
 use crate::api::ApiResponse;
 
-/// Configuration for one rate-limit bucket.
-#[derive(Debug, Clone)]
-pub struct RateLimitBucket {
-    /// Logical name embedded into the key (e.g. "login", "search").
-    pub name: &'static str,
-    pub max_requests: u32,
-    pub window_seconds: i64,
-}
-
 #[derive(Default)]
 struct WindowStore {
     // (ip, bucket) -> (window_start, count)
     windows: HashMap<(SocketAddr, String), (DateTime<Utc>, u32)>,
 }
 
-/// Simple fixed-window, in-process IP rate limiter. Good enough for a single
-/// instance; swap for Redis-backed limiting when scaling horizontally.
-///
-/// The client address comes from the `ConnectInfo` extension inserted by
-/// `into_make_service_with_connect_info`.
-pub async fn ip_rate_limit(
-    State(bucket): State<Arc<RateLimitBucket>>,
+static STORE: Mutex<Option<WindowStore>> = Mutex::new(None);
+
+/// Fixed-window IP rate limiter shared by all buckets.
+async fn limit(
     req: Request,
     next: Next,
+    bucket: &'static str,
+    max_requests: u32,
+    window_seconds: i64,
 ) -> Response {
-    static STORE: Mutex<Option<WindowStore>> = Mutex::new(None);
-
     let addr = req
         .extensions()
-        .get::<axum::extract::ConnectInfo<SocketAddr>>()
+        .get::<ConnectInfo<SocketAddr>>()
         .map(|c| c.0)
         .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 0)));
 
@@ -53,8 +42,8 @@ pub async fn ip_rate_limit(
     let store = guard.get_or_insert_with(WindowStore::default);
 
     let now = Utc::now();
-    let window = Duration::seconds(bucket.window_seconds);
-    let key = (addr, bucket.name.to_string());
+    let window = Duration::seconds(window_seconds);
+    let key = (addr, bucket.to_string());
 
     let allowed = match store.windows.entry(key) {
         std::collections::hash_map::Entry::Occupied(mut occupied) => {
@@ -65,7 +54,7 @@ pub async fn ip_rate_limit(
                 true
             } else {
                 *count += 1;
-                *count <= bucket.max_requests
+                *count <= max_requests
             }
         }
         std::collections::hash_map::Entry::Vacant(vacant) => {
@@ -74,7 +63,6 @@ pub async fn ip_rate_limit(
         }
     };
 
-    // Opportunistic cleanup of stale windows to bound memory use.
     if store.windows.len() > 10_000 {
         store.windows.retain(|_, (start, _)| now - *start <= window);
     }
@@ -89,4 +77,14 @@ pub async fn ip_rate_limit(
     }
 
     next.run(req).await
+}
+
+/// 10 logins / minute per IP.
+pub async fn login_rate_limit(req: Request, next: Next) -> Response {
+    limit(req, next, "login", 10, 60).await
+}
+
+/// 30 searches / minute per IP.
+pub async fn search_rate_limit(req: Request, next: Next) -> Response {
+    limit(req, next, "search", 30, 60).await
 }

@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use crate::api::ApiResponse;
 use crate::config::Settings;
-use crate::middleware::{ip_rate_limit, RateLimitBucket};
+use crate::middleware::login_rate_limit;
 use crate::utils::crypto;
 
 const STATE_TTL_SECONDS: i64 = 600;
@@ -620,9 +620,7 @@ async fn auth_middleware(
 }
 
 pub fn create_auth_router(state: Arc<AuthState>) -> Router {
-    let login_bucket = Arc::new(RateLimitBucket { name: "login", max_requests: 10, window_seconds: 60 });
-
-    // Public: the OAuth login flow itself must be reachable without a JWT.
+        // Public: the OAuth login flow itself must be reachable without a JWT.
     let public = Router::new()
         .route("/twitch", post(twitch_login))
         .route("/twitch/callback", get(twitch_callback))
@@ -630,7 +628,7 @@ pub fn create_auth_router(state: Arc<AuthState>) -> Router {
         .route("/soundcloud/callback", get(soundcloud_callback))
         .route("/refresh", post(refresh_token))
         .layer(middleware::from_fn_with_state(state.clone(), auth_state_injector))
-        .layer(middleware::from_fn_with_state(login_bucket.clone(), ip_rate_limit));
+        .layer(middleware::from_fn(login_rate_limit));
 
     // Protected: session info and provider connect management.
     let protected = Router::new()

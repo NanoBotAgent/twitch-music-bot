@@ -206,7 +206,7 @@ impl SoundCloudClient {
         anyhow::bail!("SoundCloud API rejected the client_id after retry")
     }
 
-    fn to_song(track: ScTrack, confidence: f32, matched_query: &str) -> Song {
+    fn to_song(track: ScTrack, _confidence: f32, _matched_query: &str) -> Song {
         let thumbnail = track
             .artwork_url
             .or_else(|| track.user.avatar_url.clone())

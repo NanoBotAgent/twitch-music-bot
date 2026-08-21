@@ -51,7 +51,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json",
 
 # Metrics
 metrics = "0.24"
-metrics-exporter-prometheus = { version = "0.17", default-features = false }
+metrics-exporter-prometheus = { version = "0.17", default-features = false, features = ["http-listener"] }
 sysinfo = "0.30"
 
 # Error handling

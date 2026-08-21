@@ -144,7 +144,7 @@ impl MusicManager {
         Ok(resolved)
     }
 
-    async fn resolve_stream_url(&self, streamer_id: Uuid, song: &Song) -> anyhow::Result<String> {
+    async fn resolve_stream_url(&self, _streamer_id: Uuid, song: &Song) -> anyhow::Result<String> {
         match song.source {
             MusicSource::YouTube => self.youtube.get_stream_url(&song.source_id).await,
             MusicSource::SoundCloud => self.soundcloud.get_stream_url(&song.source_id).await,
