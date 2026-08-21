@@ -10,7 +10,7 @@ pub fn setup_metrics(settings: &crate::config::Settings) -> Result<(), anyhow::E
     }
 
     let builder = PrometheusBuilder::new()
-        .with_http_listener(([0, 0, 0, 0], settings.metrics.port.unwrap_or(9090)).into())
+        .with_http_listener(std::net::SocketAddr::from(([0, 0, 0, 0], settings.metrics.port.unwrap_or(9090))))
         .add_global_label("service", "twitch-music-bot")
         .add_global_label("version", env!("CARGO_PKG_VERSION"));
 

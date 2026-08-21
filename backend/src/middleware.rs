@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use axum::{
-    extract::{ConnectInfo, Request},
+    extract::{ConnectInfo, Request, State},
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
@@ -80,11 +80,11 @@ async fn limit(
 }
 
 /// 10 logins / minute per IP.
-pub async fn login_rate_limit(req: Request, next: Next) -> Response {
+pub async fn login_rate_limit(State(_): State<()>, req: Request, next: Next) -> Response {
     limit(req, next, "login", 10, 60).await
 }
 
 /// 30 searches / minute per IP.
-pub async fn search_rate_limit(req: Request, next: Next) -> Response {
+pub async fn search_rate_limit(State(_): State<()>, req: Request, next: Next) -> Response {
     limit(req, next, "search", 30, 60).await
 }

@@ -3,6 +3,8 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::path::Path;
 
+
+use secrecy::ExposeSecret;
 #[derive(Debug, Clone, Deserialize)]
 pub struct Settings {
     pub server: ServerConfig,

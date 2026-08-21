@@ -19,6 +19,7 @@ use axum::{
     routing::get,
     Router,
 };
+use secrecy::ExposeSecret;
 use tokio::sync::{broadcast, mpsc};
 use tower_http::cors::AllowOrigin;
 use tracing::{error, info};
@@ -48,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(settings.database.max_connections)
         .acquire_timeout(Duration::from_secs(10))
-        .connect(&settings.database.url)
+        .connect(settings.database.url.expose_secret())
         .await?;
 
     sqlx::query("SELECT 1").execute(&pool).await?;

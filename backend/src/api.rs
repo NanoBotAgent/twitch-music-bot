@@ -518,7 +518,10 @@ pub fn create_api_router(
         .route("/queue/:id/skip", post(skip_song))
         .route("/requests", post(add_request))
         .route("/history", get(get_history))
-        .route("/search", get(search_songs).layer(middleware::from_fn(search_rate_limit)))
+        .route(
+            "/search",
+            get(search_songs).layer(middleware::from_fn_with_state((), search_rate_limit)),
+        )
         .route("/songs/:id/stream-url", get(get_stream_url))
         .route("/config", get(get_config).put(update_streamer_config))
         .route("/blocked-users", get(list_blocked_users).post(block_user))

@@ -628,7 +628,7 @@ pub fn create_auth_router(state: Arc<AuthState>) -> Router {
         .route("/soundcloud/callback", get(soundcloud_callback))
         .route("/refresh", post(refresh_token))
         .layer(middleware::from_fn_with_state(state.clone(), auth_state_injector))
-        .layer(middleware::from_fn(login_rate_limit));
+        .layer(middleware::from_fn_with_state((), login_rate_limit));
 
     // Protected: session info and provider connect management.
     let protected = Router::new()
