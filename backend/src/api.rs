@@ -325,7 +325,7 @@ async fn has_playback_context(pool: &PgPool, streamer_id: Uuid, song_id: Uuid) -
     )
     .bind(streamer_id)
     .bind(song_id)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
 
     if row.map(|(n,)| n > 0).unwrap_or(false) {
@@ -338,7 +338,7 @@ async fn has_playback_context(pool: &PgPool, streamer_id: Uuid, song_id: Uuid) -
     )
     .bind(streamer_id)
     .bind(song_id)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
 
     Ok(row.map(|(n,)| n > 0).unwrap_or(false))

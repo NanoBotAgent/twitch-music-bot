@@ -1,3 +1,4 @@
+use chrono::Utc;
 use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -199,7 +200,7 @@ impl YouTubeClient {
                 source_id: video.video_id.clone(),
                 title: video.title,
                 artist: video.author,
-                duration_seconds: Some(video.length_seconds),
+                duration_seconds: Some(video.length_seconds as i32),
                 thumbnail_url: thumbnail,
                 stream_url: None,
                 explicit: false,
@@ -219,7 +220,7 @@ impl YouTubeClient {
     }
 
     async fn search_piped(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>, anyhow::Error> {
-        let url = format!("{}/search?q={}&filter=video", self.get_piped_url(), urlencoding::encode(query));
+        let url = format!("{}/search?q={}&filter=video", self.get_piped_url()?, urlencoding::encode(query));
         let response: PipedSearchResponse = self.client.get(&url).send().await?.json().await?;
 
         let mut results = Vec::new();
@@ -238,7 +239,7 @@ impl YouTubeClient {
                 source_id: video.video_id.clone(),
                 title: video.title,
                 artist: video.channel_name,
-                duration_seconds: Some(video.duration),
+                duration_seconds: Some(video.duration as i32),
                 thumbnail_url: thumbnail,
                 stream_url: None,
                 explicit: false,
@@ -369,7 +370,7 @@ impl YouTubeClient {
             source_id: video.video_id,
             title: video.title,
             artist: video.author,
-            duration_seconds: Some(video.length_seconds),
+            duration_seconds: Some(video.length_seconds as i32),
             thumbnail_url: thumbnail,
             stream_url: None,
             explicit: false,

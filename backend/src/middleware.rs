@@ -1,9 +1,9 @@
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use axum::{
-    extract::{ConnectInfo, Request, State},
+    extract::{Request, State},
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
@@ -25,18 +25,26 @@ pub struct RateLimitBucket {
 #[derive(Default)]
 struct WindowStore {
     // (ip, bucket) -> (window_start, count)
-    windows: HashMap<(IpAddr, String), (DateTime<Utc>, u32)>,
+    windows: HashMap<(SocketAddr, String), (DateTime<Utc>, u32)>,
 }
 
 /// Simple fixed-window, in-process IP rate limiter. Good enough for a single
 /// instance; swap for Redis-backed limiting when scaling horizontally.
+///
+/// The client address comes from the `ConnectInfo` extension inserted by
+/// `into_make_service_with_connect_info`.
 pub async fn ip_rate_limit(
     State(bucket): State<Arc<RateLimitBucket>>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     req: Request,
     next: Next,
 ) -> Response {
     static STORE: Mutex<Option<WindowStore>> = Mutex::new(None);
+
+    let addr = req
+        .extensions()
+        .get::<axum::extract::ConnectInfo<SocketAddr>>()
+        .map(|c| c.0)
+        .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 0)));
 
     let mut guard = match STORE.lock() {
         Ok(g) => g,
@@ -46,10 +54,9 @@ pub async fn ip_rate_limit(
 
     let now = Utc::now();
     let window = Duration::seconds(bucket.window_seconds);
-    let key = (addr.ip(), bucket.name.to_string());
+    let key = (addr, bucket.name.to_string());
 
-    let entry = store.windows.entry(key);
-    let allowed = match entry {
+    let allowed = match store.windows.entry(key) {
         std::collections::hash_map::Entry::Occupied(mut occupied) => {
             let (start, count) = occupied.get_mut();
             if now - *start > window {
@@ -57,9 +64,8 @@ pub async fn ip_rate_limit(
                 *count = 1;
                 true
             } else {
-                let next = *count + 1;
-                *count = next;
-                next <= bucket.max_requests
+                *count += 1;
+                *count <= bucket.max_requests
             }
         }
         std::collections::hash_map::Entry::Vacant(vacant) => {
@@ -77,7 +83,7 @@ pub async fn ip_rate_limit(
     if !allowed {
         return (
             StatusCode::TOO_MANY_REQUESTS,
-            Json(ApiResponse::<serde_json::Value>::err("RATE_LIMITED", "Too many requests")),
+            Json(ApiResponse::<()>::err("RATE_LIMITED", "Too many requests")),
         )
             .into_response();
     }

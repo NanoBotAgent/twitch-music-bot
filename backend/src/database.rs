@@ -251,14 +251,14 @@ pub mod oauth {
     /// Returns None if unknown or expired.
     pub async fn take_state(pool: &PgPool, state_token: &str) -> anyhow::Result<Option<JsonValue>> {
         let mut tx = pool.begin().await?;
-        let row: Option<JsonValue> = sqlx::query_as::<_, JsonValue>(
+        let row: Option<(JsonValue,)> = sqlx::query_as(
             "SELECT state_data FROM oauth_states WHERE state_token = $1 AND expires_at > NOW() FOR UPDATE",
         )
         .bind(state_token)
         .fetch_optional(&mut *tx)
         .await?;
 
-        if let Some(data) = row {
+        if let Some((data,)) = row {
             sqlx::query("DELETE FROM oauth_states WHERE state_token = $1")
                 .bind(state_token)
                 .execute(&mut *tx)
@@ -583,9 +583,9 @@ pub mod queue {
         )
         .bind(streamer_id)
         .bind(twitch_user_id)
-        .fetch_one(pool)
+        .fetch_optional(pool)
         .await?;
-        Ok(r.map(|x| x.0))
+        Ok(r.map(|(t,)| t))
     }
 
     pub async fn get_queue(pool: &PgPool, streamer_id: Uuid) -> anyhow::Result<Vec<QueueRow>> {

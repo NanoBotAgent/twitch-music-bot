@@ -32,7 +32,7 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip"], default
 
 # Config & Secrets
 config = { version = "0.14", features = ["toml"] }
-secrecy = "0.10"
+secrecy = { version = "0.10", features = ["serde"] }
 
 # Auth / Crypto
 jsonwebtoken = "9.2"

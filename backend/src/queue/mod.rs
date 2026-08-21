@@ -144,11 +144,11 @@ impl QueueManager {
         query: &str,
         source_hint: Option<String>,
     ) -> Result<QueuedSong, BotError> {
-        let config = self.config_for(streamer_id).await.map_err(BotError::Database)?;
+        let config = self.config_for(streamer_id).await.map_err(BotError::Music)?;
 
         if database::blocked_users::is_blocked(&self.pool, streamer_id, &user.twitch_user_id)
             .await
-            .map_err(BotError::Database)?
+            .map_err(BotError::Music)?
         {
             metrics::record_queue_operation("add_blocked_user", false);
             return Err(BotError::UserBlocked);
@@ -157,7 +157,7 @@ impl QueueManager {
         // Per-user pending cap.
         let pending_for_user = database::queue::user_pending_count(&self.pool, streamer_id, &user.twitch_user_id)
             .await
-            .map_err(BotError::Database)?;
+            .map_err(BotError::Music)?;
         if pending_for_user >= i64::from(config.max_requests_per_user) && !user.is_mod {
             metrics::record_queue_operation("add_limit", false);
             return Err(BotError::RateLimited);
@@ -168,7 +168,7 @@ impl QueueManager {
             if let Some(last) =
                 database::queue::last_request_time(&self.pool, streamer_id, &user.twitch_user_id)
                     .await
-                    .map_err(BotError::Database)?
+                    .map_err(BotError::Music)?
             {
                 let elapsed = Utc::now() - last;
                 if elapsed < Duration::seconds(i64::from(config.request_cooldown_seconds)) {
@@ -189,7 +189,7 @@ impl QueueManager {
             config.max_requests_per_user * 2,
         )
         .await
-        .map_err(BotError::Database)?
+        .map_err(BotError::Music)?
         {
             metrics::record_queue_operation("add_ratelimit", false);
             return Err(BotError::RateLimited);
@@ -198,7 +198,7 @@ impl QueueManager {
         // Queue capacity.
         let pending_total = database::queue::count_pending(&self.pool, streamer_id)
             .await
-            .map_err(BotError::Database)?;
+            .map_err(BotError::Music)?;
         if pending_total >= i64::from(config.max_queue_size) {
             metrics::record_queue_operation("add_full", false);
             return Err(BotError::QueueFull);
@@ -218,11 +218,9 @@ impl QueueManager {
         }
 
         // Duplicate guard.
-        if !config.allow_duplicates {
-            if self.is_duplicate(streamer_id, &best.song.source_id).await.map_err(BotError::Database)? {
-                metrics::record_queue_operation("add_duplicate", false);
-                return Err(BotError::NotFound);
-            }
+        if self.is_duplicate(streamer_id, &best.song.source_id).await.map_err(BotError::Music)? {
+            metrics::record_queue_operation("add_duplicate", false);
+            return Err(BotError::NotFound);
         }
 
         // Persist catalog entry and enqueue.
@@ -232,7 +230,7 @@ impl QueueManager {
         let (item_id, _position) =
             database::queue::add(&self.pool, streamer_id, best.song.id, user, priority)
                 .await
-                .map_err(BotError::Database)?;
+                .map_err(BotError::Music)?;
 
         metrics::record_queue_operation("add", true);
         let _ = source_hint;
@@ -261,7 +259,7 @@ impl QueueManager {
         )
         .bind(streamer_id)
         .bind(source_id)
-        .fetch_one(&self.pool)
+        .fetch_optional(&self.pool)
         .await?;
         Ok(row.map(|(n,)| n > 0).unwrap_or(false))
     }
@@ -528,11 +526,11 @@ impl QueueManager {
     async fn broadcast_queue(&self, streamer_id: Uuid) {
         match self.get_queue_summary(streamer_id).await {
             Ok(queue) => {
+                metrics::record_queue_size(&streamer_id.to_string(), queue.len());
                 let _ = self.overlay_tx.send(OverlayMessage::new(
                     streamer_id,
                     OverlayEvent::QueueUpdated { queue },
                 ));
-                metrics::record_queue_size(&streamer_id.to_string(), queue.len());
             }
             Err(e) => warn!("failed to build queue summary for {streamer_id}: {e:#}"),
         }

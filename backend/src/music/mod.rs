@@ -107,21 +107,14 @@ impl MusicManager {
     ) -> anyhow::Result<Song> {
         match source {
             MusicSource::YouTube => {
-                metrics::record_stream_url_fetch("youtube");
                 // Accept raw video ids as well as full URLs.
                 match YouTubeClient::extract_video_id(id_or_url) {
                     Some(video_id) => self.youtube.get_video_info(&video_id).await,
                     None => self.youtube.get_video_info(id_or_url).await,
                 }
             }
-            MusicSource::SoundCloud => {
-                metrics::record_stream_url_fetch("soundcloud");
-                self.soundcloud.resolve_url(id_or_url).await
-            }
-            MusicSource::Spotify => {
-                metrics::record_stream_url_fetch("spotify");
-                self.spotify.get_track(streamer_id, id_or_url).await
-            }
+            MusicSource::SoundCloud => self.soundcloud.resolve_url(id_or_url).await,
+            MusicSource::Spotify => self.spotify.get_track(streamer_id, id_or_url).await,
             MusicSource::Local => anyhow::bail!("local source resolution is not supported"),
         }
     }

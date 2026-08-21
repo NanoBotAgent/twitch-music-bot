@@ -52,26 +52,45 @@ async fn handle_overlay_socket(socket: WebSocket, streamer_id: Uuid, hub: Arc<Ov
 
     let (mut sender, mut receiver) = socket.split();
 
+    // Outbound channel so both the fan-out task and the read loop can write.
+    let (outbound_tx, mut outbound_rx) = tokio::sync::mpsc::channel::<Message>(64);
+
     // Fan-out task: only forward messages belonging to THIS streamer.
     let mut rx = hub.tx.subscribe();
     let forward_handle = tokio::spawn(async move {
         loop {
-            match rx.recv().await {
-                Ok(msg) => {
-                    if msg.streamer_id != streamer_id {
-                        continue;
-                    }
-                    let Ok(json) = serde_json::to_string(&msg) else {
-                        continue;
-                    };
-                    if sender.send(Message::Text(json)).await.is_err() {
-                        break;
+            tokio::select! {
+                biased;
+
+                maybe_out = outbound_rx.recv() => {
+                    match maybe_out {
+                        Some(msg) => {
+                            if sender.send(msg).await.is_err() {
+                                break;
+                            }
+                        }
+                        None => break,
                     }
                 }
-                Err(broadcast::error::RecvError::Lagged(n)) => {
-                    debug!("overlay client lagged by {n} events");
+                recv = rx.recv() => {
+                    match recv {
+                        Ok(msg) => {
+                            if msg.streamer_id != streamer_id {
+                                continue;
+                            }
+                            let Ok(json) = serde_json::to_string(&msg) else {
+                                continue;
+                            };
+                            if sender.send(Message::Text(json)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            debug!("overlay client lagged by {n} events");
+                        }
+                        Err(broadcast::error::RecvError::Closed) => break,
+                    }
                 }
-                Err(broadcast::error::RecvError::Closed) => break,
             }
         }
     });
@@ -91,7 +110,9 @@ async fn handle_overlay_socket(socket: WebSocket, streamer_id: Uuid, hub: Arc<Ov
         match serde_json::from_str::<ClientMessage>(&text) {
             Ok(ClientMessage::Ping) => {
                 let _ = database::overlay::ping(&hub.pool, &connection_id).await;
-                let _ = sender.send(Message::Text(r#"{"type":"pong"}"#.to_string())).await;
+                let _ = outbound_tx
+                    .send(Message::Text(r#"{"type":"pong"}"#.to_string()))
+                    .await;
             }
             Err(e) => debug!("unparsable overlay message: {e}"),
         }

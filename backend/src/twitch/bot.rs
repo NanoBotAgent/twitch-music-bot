@@ -84,11 +84,7 @@ async fn handle_privmsg(ctx: &ChatContext, pm: &PrivmsgMessage) -> anyhow::Resul
         id: pm.sender.id.clone(),
         twitch_user_id: pm.sender.id.clone(),
         login: pm.sender.login.clone(),
-        display_name: pm
-            .sender
-            .display_name
-            .clone()
-            .unwrap_or_else(|| pm.sender.login.clone()),
+        display_name: pm.sender.name.clone(),
         is_mod: pm.badges.iter().any(|b| b.name == "moderator"),
         is_sub: pm.badges.iter().any(|b| b.name == "subscriber"),
         is_vip: pm.badges.iter().any(|b| b.name == "vip"),
