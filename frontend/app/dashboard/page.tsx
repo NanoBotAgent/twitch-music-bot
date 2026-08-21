@@ -154,14 +154,13 @@ function NowPlaying({
   );
 }
 
-function Thumbnail({ song }: { song: Song | null }) {
+function Thumbnail({ song, small }: { song: Song | null; small?: boolean }) {
+  const size = small ? "h-10 w-10 rounded-lg" : "h-20 w-20 rounded-xl";
   if (song?.thumbnail_url) {
     // eslint-disable-next-line @next/next/no-img-element
-    return (
-      <img src={song.thumbnail_url} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" />
-    );
+    return <img src={song.thumbnail_url} alt="" className={`${size} shrink-0 object-cover`} />;
   }
-  return <div className="h-20 w-20 shrink-0 rounded-xl bg-slate-800" />;
+  return <div className={`${size} shrink-0 bg-slate-800`} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -253,15 +252,6 @@ function RequestPanel({
       </ul>
     </section>
   );
-}
-
-function Thumbnail({ song, small }: { song: Song | null; small?: boolean }) {
-  const size = small ? "h-10 w-10 rounded-lg" : "h-20 w-20 rounded-xl";
-  if (song?.thumbnail_url) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={song.thumbnail_url} alt="" className={`${size} shrink-0 object-cover`} />;
-  }
-  return <div className={`${size} shrink-0 bg-slate-800`} />;
 }
 
 function sourceLabel(source: string): string {

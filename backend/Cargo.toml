@@ -31,7 +31,7 @@ twitch-irc = "5.0"
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip"], default-features = false }
 
 # Config & Secrets
-config = { version = "0.14", features = ["toml", "env"] }
+config = { version = "0.14", features = ["toml"] }
 secrecy = "0.10"
 
 # Auth / Crypto
