@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::auth::{auth_state_injector, AuthUser, AuthState};
 use crate::config::Settings;
 use crate::database;
-use crate::middleware::search_rate_limit;
+use crate::middleware::check_rate_limit;
 use crate::music::MusicManager;
 use crate::queue::QueueManager;
 
@@ -264,8 +264,12 @@ struct SearchParams {
 async fn search_songs(
     auth: AuthUser,
     State(state): State<Arc<ApiState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     AxumQuery(params): AxumQuery<SearchParams>,
 ) -> Response {
+    if let Err(resp) = check_rate_limit(addr, "search", 30, 60) {
+        return resp;
+    }
     if params.q.trim().is_empty() {
         return (
             StatusCode::BAD_REQUEST,

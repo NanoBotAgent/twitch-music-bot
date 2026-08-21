@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Query, Request, State},
+    extract::{ConnectInfo, Query, Request, State},
     http::{header, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -12,6 +12,7 @@ use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::net::SocketAddr;
 use sqlx::PgPool;
 use tracing::{error, info, warn};
 use urlencoding::encode as url_encode;
@@ -19,7 +20,7 @@ use uuid::Uuid;
 
 use crate::api::ApiResponse;
 use crate::config::Settings;
-use crate::middleware::login_rate_limit;
+use crate::middleware::check_rate_limit;
 use crate::utils::crypto;
 
 const STATE_TTL_SECONDS: i64 = 600;
@@ -168,7 +169,14 @@ struct TwitchCallbackQuery {
     error_description: Option<String>,
 }
 
-async fn twitch_login(State(state): State<Arc<AuthState>>) -> Response {
+async fn twitch_login(
+    State(state): State<Arc<AuthState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Response {
+    if let Err(resp) = check_rate_limit(addr, "login", 10, 60) {
+        return resp;
+    }
+
     match begin_oauth_flow(
         &state,
         "twitch",
@@ -513,7 +521,15 @@ struct RefreshRequest {
     refresh_token: String,
 }
 
-async fn refresh_token(State(state): State<Arc<AuthState>>, Json(body): Json<RefreshRequest>) -> Response {
+async fn refresh_token(
+    State(state): State<Arc<AuthState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Json(body): Json<RefreshRequest>,
+) -> Response {
+    if let Err(resp) = check_rate_limit(addr, "refresh", 20, 60) {
+        return resp;
+    }
+
     let claims = match decode::<Claims>(
         &body.refresh_token,
         &state.decoding_key,

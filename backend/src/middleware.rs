@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use axum::{
-    extract::{ConnectInfo, Request, State},
+    extract::{ConnectInfo, Request},
     http::StatusCode,
-    middleware::Next,
     response::{IntoResponse, Response},
     Json,
 };
@@ -21,20 +20,22 @@ struct WindowStore {
 
 static STORE: Mutex<Option<WindowStore>> = Mutex::new(None);
 
-/// Fixed-window IP rate limiter shared by all buckets.
-async fn limit(
-    req: Request,
-    next: Next,
+/// Client IP from the ConnectInfo extension.
+pub fn client_ip(req: &Request) -> SocketAddr {
+    req.extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0)
+        .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 0)))
+}
+
+/// Fixed-window per-IP limiter shared by all buckets. Returns Err(response)
+/// with 429 when exhausted; handlers call this before doing work.
+pub fn check_rate_limit(
+    ip: SocketAddr,
     bucket: &'static str,
     max_requests: u32,
     window_seconds: i64,
-) -> Response {
-    let addr = req
-        .extensions()
-        .get::<ConnectInfo<SocketAddr>>()
-        .map(|c| c.0)
-        .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 0)));
-
+) -> Result<(), Response> {
     let mut guard = match STORE.lock() {
         Ok(g) => g,
         Err(poisoned) => poisoned.into_inner(),
@@ -43,7 +44,7 @@ async fn limit(
 
     let now = Utc::now();
     let window = Duration::seconds(window_seconds);
-    let key = (addr, bucket.to_string());
+    let key = (ip, bucket.to_string());
 
     let allowed = match store.windows.entry(key) {
         std::collections::hash_map::Entry::Occupied(mut occupied) => {
@@ -63,28 +64,24 @@ async fn limit(
         }
     };
 
+    // Opportunistic cleanup to bound memory use.
     if store.windows.len() > 10_000 {
         store.windows.retain(|_, (start, _)| now - *start <= window);
     }
     drop(guard);
 
-    if !allowed {
-        return (
+    if allowed {
+        Ok(())
+    } else {
+        Err((
             StatusCode::TOO_MANY_REQUESTS,
             Json(ApiResponse::<()>::err("RATE_LIMITED", "Too many requests")),
         )
-            .into_response();
+            .into_response())
     }
-
-    next.run(req).await
 }
 
-/// 10 logins / minute per IP.
-pub async fn login_rate_limit(State(_): State<()>, req: Request, next: Next) -> Response {
-    limit(req, next, "login", 10, 60).await
-}
-
-/// 30 searches / minute per IP.
-pub async fn search_rate_limit(State(_): State<()>, req: Request, next: Next) -> Response {
-    limit(req, next, "search", 30, 60).await
+/// Convenience wrapper returning Arc-free ip for tests.
+pub fn unknown_ip() -> SocketAddr {
+    SocketAddr::from(([0, 0, 0, 0], 0))
 }
