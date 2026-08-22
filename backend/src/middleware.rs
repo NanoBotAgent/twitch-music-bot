@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use axum::{
     extract::{ConnectInfo, Request},
@@ -81,7 +81,3 @@ pub fn check_rate_limit(
     }
 }
 
-/// Convenience wrapper returning Arc-free ip for tests.
-pub fn unknown_ip() -> SocketAddr {
-    SocketAddr::from(([0, 0, 0, 0], 0))
-}
