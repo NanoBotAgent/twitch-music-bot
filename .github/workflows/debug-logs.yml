@@ -1,0 +1,54 @@
+name: Debug Logs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch-logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump backend service logs
+        env:
+          AD_WEBDAV_PASSWORD: ${{ secrets.ALWAYSDATA_WEBDAV_PASSWORD }}
+        run: |
+          set -uo pipefail
+          AUTH="twitch-bot:${AD_WEBDAV_PASSWORD}"
+          BASE="https://webdav-twitch-bot.alwaysdata.net"
+
+          dump_dir() {
+            local dir="$1"
+            local code
+            code=$(curl -sS --basic --user "$AUTH" -X PROPFIND -H 'Depth: 1' \
+              -o /tmp/listing.xml -w '%{http_code}' "$BASE$dir" || true)
+            echo "== LIST $dir -> $code =="
+            if [ "$code" != "207" ]; then return 0; fi
+            local hrefs
+            hrefs=$(grep -o '<D:href>[^<]*</D:href>' /tmp/listing.xml | sed 's/<[^>]*>//g' || true)
+            echo "$hrefs"
+            local dumped=0
+            for h in $hrefs; do
+              local name
+              name=$(basename "$h")
+              case "$name" in
+                *.gz|*.gz.*) continue ;;
+                *access*) continue ;;
+              esac
+              case "$name" in
+                *program*|*.log|*error*) ;;
+                *) continue ;;
+              esac
+              echo ""
+              echo "== TAIL $name =="
+              curl -sS --basic --user "$AUTH" "$BASE$dir$name" | tail -n 250 || true
+              dumped=$((dumped+1))
+              if [ "$dumped" -ge 5 ]; then break; fi
+            done
+            if [ "$dumped" -eq 0 ]; then
+              echo "(no matching log files dumped)"
+            fi
+          }
+
+          for ROOT in "" "/twitch-bot"; do
+            echo "### trying root prefix '${ROOT:-/}'"
+            dump_dir "${ROOT}/admin/logs/"
+          done
