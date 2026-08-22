@@ -72,6 +72,7 @@ pub struct SpotifyConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct YouTubeConfig {
+    #[serde(default)]
     pub api_key: SecretString,
     pub invidious_instances: Vec<String>,
     pub piped_instances: Vec<String>,

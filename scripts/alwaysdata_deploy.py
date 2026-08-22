@@ -57,6 +57,14 @@ if spotify_id.strip() and spotify_secret.strip():
     env_parts.append(f"APP__SPOTIFY__CLIENT_SECRET={spotify_secret}")
 else:
     print("Spotify credentials not set; skipping APP__SPOTIFY__* env vars")
+twitch_id = os.environ.get("TWITCH_CLIENT_ID", "")
+twitch_secret = os.environ.get("TWITCH_CLIENT_SECRET", "")
+if twitch_id.strip() and twitch_secret.strip():
+    env_parts.append(f"APP__TWITCH__CLIENT_ID={twitch_id}")
+    env_parts.append(f"APP__TWITCH__CLIENT_SECRET={twitch_secret}")
+    env_parts.append(f"APP__TWITCH__REDIRECT_URI=https://twitch-bot.alwaysdata.net/auth/twitch/callback")
+else:
+    print("Twitch credentials not set; skipping APP__TWITCH__* env vars")
 env_string = " ".join(env_parts)
 
 service_payload = {
@@ -90,6 +98,21 @@ if st != 200 or not isinstance(svcs, list):
 existing = [s for s in svcs if s.get("command") == service_payload["command"]]
 if existing:
     sid = existing[0]["id"]
+    st, cur = call(f"/service/{sid}/")
+    if st == 200:
+        managed = {p.split("=", 1)[0] for p in env_string.split() if "=" in p}
+        preserved = []
+        for pair in (cur.get("environment") or "").split():
+            k = pair.split("=", 1)[0]
+            if "=" in pair and k not in managed:
+                preserved.append(pair)
+                managed.add(k)
+        if preserved:
+            print("preserving existing env keys:", [p.split("=", 1)[0] for p in preserved])
+            env_string = env_string + " " + " ".join(preserved)
+            service_payload["environment"] = env_string
+    else:
+        print(f"warning: could not read current service ({st}); overwriting environment")
     st, resp = call(f"/service/{sid}/", "PATCH", service_payload)
     print(f"service patch {sid}:", st)
     if st >= 400:

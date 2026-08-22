@@ -41,6 +41,7 @@ api_base_url = "https://api.spotify.com/v1"
 rate_limit_per_second = 10
 
 [youtube]
+api_key = ""
 invidious_instances = [
   "https://yewtu.be",
   "https://inv.nadeko.net",
