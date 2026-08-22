@@ -1,0 +1,23 @@
+name: DB Smoke Test
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    name: Neon Connectivity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test connection
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NEON_DATABASE_URL" ]; then
+            echo "::error::NEON_DATABASE_URL secret is not set"
+            exit 1
+          fi
+          echo "Connected to:"
+          psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT version();"
+          echo "Tables:"
+          psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -c "\dt"
