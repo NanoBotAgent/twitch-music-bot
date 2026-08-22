@@ -19,11 +19,6 @@ pub fn setup_metrics(settings: &crate::config::Settings) -> Result<(), anyhow::E
     Ok(())
 }
 
-pub fn record_request(method: &str, path: &str, status: u16, duration: Duration) {
-    counter!("http_requests_total", "method" => method.to_string(), "path" => path.to_string(), "status" => status.to_string()).increment(1);
-    histogram!("http_request_duration_seconds", "method" => method.to_string(), "path" => path.to_string()).record(duration.as_secs_f64());
-}
-
 pub fn record_twitch_message(command: &str, success: bool) {
     counter!("twitch_messages_total", "command" => command.to_string(), "success" => success.to_string()).increment(1);
 }

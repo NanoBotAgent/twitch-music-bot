@@ -250,9 +250,11 @@ impl SpotifyClient {
             .collect())
     }
 
-    pub async fn get_track(&self, streamer_id: Uuid, track_id: &str) -> anyhow::Result<Song> {
+    pub async fn get_track(&self, streamer_id: Uuid, track_or_url: &str) -> anyhow::Result<Song> {
+        let track_id =
+            Self::extract_track_id(track_or_url).unwrap_or_else(|| track_or_url.to_string());
         let track: SpotifyTrack = self
-            .get_json(streamer_id, &format!("/tracks/{}", urlencoding::encode(track_id)))
+            .get_json(streamer_id, &format!("/tracks/{}", urlencoding::encode(&track_id)))
             .await?;
         Ok(Self::to_song(track))
     }

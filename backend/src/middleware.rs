@@ -5,7 +5,6 @@ use std::net::SocketAddr;
 use std::sync::Mutex;
 
 use axum::{
-    extract::{ConnectInfo, Request},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,

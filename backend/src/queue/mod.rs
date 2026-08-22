@@ -20,7 +20,7 @@ use twitch_music_shared::*;
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum QueueNotification {
-    SongStarted(QueuedSong),
+    SongStarted(Box<QueuedSong>),
     SongEnded(Uuid),
     QueueCleared,
 }
@@ -311,7 +311,10 @@ impl QueueManager {
             if !already_playing {
                 match self.start_next_song(streamer_id).await {
                     Ok(Some(song)) => {
-                        let _ = self.notification_tx.send(QueueNotification::SongStarted(song)).await;
+                        let _ = self
+                            .notification_tx
+                            .send(QueueNotification::SongStarted(Box::new(song)))
+                            .await;
                     }
                     Ok(None) => {}
                     Err(e) => {
