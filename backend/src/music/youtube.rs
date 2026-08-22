@@ -561,6 +561,7 @@ struct YtDataSearchItem {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct YtDataVideoId {
     video_id: Option<String>,
 }
@@ -571,6 +572,7 @@ struct YtDataVideosResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct YtDataVideo {
     id: String,
     snippet: YtDataSnippet,
@@ -583,6 +585,7 @@ struct YtDataContentDetails {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct YtDataSnippet {
     title: String,
     channel_title: String,
