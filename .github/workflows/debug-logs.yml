@@ -4,44 +4,22 @@ on:
   workflow_dispatch:
 
 jobs:
-  diag:
+  stream-probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Tail backend log
-        env:
-          AD_WEBDAV_PASSWORD: ${{ secrets.ALWAYSDATA_WEBDAV_PASSWORD }}
+      - name: Probe stream sources
         run: |
           set -u
-          AUTH="twitch-bot:${AD_WEBDAV_PASSWORD}"
-          BASE="https://webdav-twitch-bot.alwaysdata.net"
-          curl -sS --basic --user "$AUTH" "$BASE/admin/logs/services/2026/29147-2026-08-23.log" -o /tmp/svc.log
-          echo "== last 60 lines =="
-          tail -n 60 /tmp/svc.log
-
-      - name: Link search test
-        env:
-          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          YT_LINK: "https://music.youtube.com/watch?v=9DyWHHxzMR0"
-        run: |
-          set -uo pipefail
-          SID=$(psql "$NEON_DATABASE_URL" -tAc "select id from streamers limit 1")
-          TOKEN=$(python3 - "$SID" <<'PYEOF'
-          import sys, json, hmac, hashlib, base64, time, os
-          sid = sys.argv[1]
-          secret = os.environ['JWT_SECRET']
-          b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b'=')
-          now = int(time.time())
-          header = b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
-          payload = b64(json.dumps({"sub": sid, "iat": now, "exp": now + 600, "token_type": "access"}).encode())
-          si = header + b"." + payload
-          sig = b64(hmac.new(secret.encode(), si, hashlib.sha256).digest())
-          print((si + b"." + sig).decode())
-          PYEOF
-          )
-          echo "== LINK SEARCH =="
-          curl -sS -m 30 \
-            -H "Authorization: Bearer $TOKEN" \
-            -G --data-urlencode "q=$YT_LINK" \
-            "https://twitch-bot.alwaysdata.net/api/v1/search"
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
+          VID="9DyWHHxzMR0"
+          echo "### PIPED /streams/$VID ###"
+          for host in pipedapi.leptons.xyz api.piped.private.coffee pipedapi.adminforge.de pipedapi.reallyaweso.me pipedapi.drgns.space; do
+            out=$(curl -sS -m 10 -A "$UA" -w "|HTTP=%{http_code}" "https://$host/streams/$VID" 2>&1 | tail -c 260)
+            echo "$host -> $out"
+          done
           echo ""
+          echo "### INVIDIOUS video formats ###"
+          for host in yewtu.be inv.nadeko.net invidious.f5.si; do
+            out=$(curl -sS -m 10 -A "$UA" -w "|HTTP=%{http_code}" "https://$host/api/v1/videos/$VID?fields=adaptiveFormats" 2>&1 | tail -c 200)
+            echo "$host -> $out"
+          done
