@@ -11,6 +11,7 @@ PUBLIC_URL = "https://twitch-bot.alwaysdata.net"
 PORT = 8380
 
 KEY = os.environ["AD_API_KEY"]
+AD_SSH_USER = os.environ.get("AD_ACCOUNT", "twitch-bot")
 AUTH = base64.b64encode(f"{KEY}:".encode()).decode()
 
 
@@ -52,12 +53,20 @@ env_string = " ".join([
 
 service_payload = {
     "name": "backend",
-    "ssh_user": "twitch-bot",
+    "ssh_user": None,
     "working_directory": "app",
     "command": "sh -c 'chmod +x ./twitch-music-bot && exec ./twitch-music-bot'",
     "environment": env_string,
     "check_health_command": f"curl -fsS http://127.0.0.1:{PORT}/health",
 }
+
+st, ssh_users = call("/ssh/")
+if st != 200 or not isinstance(ssh_users, list):
+    raise SystemExit(f"failed to list ssh users: {st} {ssh_users}")
+ssh_id = next((u["id"] for u in ssh_users if u.get("name") == AD_SSH_USER), None)
+if ssh_id is None:
+    raise SystemExit(f"ssh user {AD_SSH_USER!r} not found")
+service_payload["ssh_user"] = ssh_id
 
 st, _ = call(f"/site/{SITE_ID}/", "PATCH", {
     "vhost_additional_directives": DIRECTIVES,
@@ -76,10 +85,14 @@ if existing:
     print("service patch:", st)
 else:
     st, resp = call("/service/", "POST", service_payload)
-    print("service create:", st)
-    sid = resp.get("id")
-    if sid is None and isinstance(resp.get("href"), str):
-        sid = int(resp["href"].rstrip("/").split("/")[-1])
+    print("service create:", st, str(resp)[:300])
+    sid = None
+    if isinstance(resp, dict):
+        sid = resp.get("id")
+        if sid is None and isinstance(resp.get("href"), str):
+            sid = int(resp["href"].rstrip("/").split("/")[-1])
+    if not isinstance(sid, int):
+        raise SystemExit(f"service create failed")
 if not isinstance(sid, int):
     raise SystemExit(f"no service id: {resp}")
 
