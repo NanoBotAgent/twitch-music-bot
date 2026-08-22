@@ -3,39 +3,33 @@ name: Debug Logs
 on:
   workflow_dispatch:
     inputs:
-      path:
-        description: "WebDAV path to dump (file) or list+dump (dir ending in /)"
-        default: "/admin/logs/"
-      grep_pattern:
-        description: "optional grep filter for files"
-        default: ""
+      mode:
+        description: "probe = test youtube mirrors"
+        default: "probe"
+      video_id:
+        description: "video id to probe"
+        default: "9DyWHHxzMR0"
 
 jobs:
-  fetch-logs:
+  probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Dump backend service logs
+      - name: Probe YouTube mirror instances
         env:
-          AD_WEBDAV_PASSWORD: ${{ secrets.ALWAYSDATA_WEBDAV_PASSWORD }}
-          LOG_PATH: ${{ github.event.inputs.path }}
-          GREP_PATTERN: ${{ github.event.inputs.grep_pattern }}
+          VID: ${{ github.event.inputs.video_id }}
         run: |
-          set -uo pipefail
-          AUTH="twitch-bot:${AD_WEBDAV_PASSWORD}"
-          BASE="https://webdav-twitch-bot.alwaysdata.net"
+          set -u
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
 
-          if [[ "$LOG_PATH" == */ ]]; then
-            code=$(curl -sS --basic --user "$AUTH" -X PROPFIND -H 'Depth: 1' \
-              -o /tmp/listing.xml -w '%{http_code}' "$BASE$LOG_PATH" || true)
-            echo "== LIST $LOG_PATH -> $code =="
-            cat /tmp/listing.xml || true
-          else
-            code=$(curl -sS --basic --user "$AUTH" -o /tmp/file.out -w '%{http_code}' "$BASE$LOG_PATH" || true)
-            echo "== GET $LOG_PATH -> $code =="
-            if [ -n "$GREP_PATTERN" ]; then
-              grep -aE "$GREP_PATTERN" /tmp/file.out | tail -n 400 || true
-            else
-              wc -l /tmp/file.out || true
-              tail -n 300 /tmp/file.out || true
-            fi
-          fi
+          echo "### INVIDIOUS /api/v1/videos/$VID ###"
+          for host in yewtu.be inv.nadeko.net invidious.f5.si iv.melmac.space invidious.privacyredirect.com; do
+            out=$(curl -sS -m 8 -A "$UA" -w "|HTTP=%{http_code}" "https://$host/api/v1/videos/$VID" 2>&1 | tail -c 200)
+            echo "$host -> $out"
+          done
+
+          echo ""
+          echo "### PIPED /streams/$VID ###"
+          for host in pipedapi.leptons.xyz pipedapi.adminforge.de api.piped.private.coffee pipedapi.reallyaweso.me pipedapi.ducks.party pipedapi.drgns.space; do
+            out=$(curl -sS -m 8 -A "$UA" -w "|HTTP=%{http_code}" "https://$host/streams/$VID" 2>&1 | tail -c 200)
+            echo "$host -> $out"
+          done
