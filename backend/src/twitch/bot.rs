@@ -2,12 +2,11 @@ use std::sync::Arc;
 
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
-use uuid::Uuid;
-
 use twitch_irc::login::StaticLoginCredentials;
 use twitch_irc::message::{PrivmsgMessage, ServerMessage};
 use twitch_irc::transport::tcp::{TCPTransport, TLS};
 use twitch_irc::TwitchIRCClient;
+use uuid::Uuid;
 
 use crate::metrics;
 use crate::queue::QueueManager;
@@ -20,7 +19,6 @@ type IrcClient = TwitchIRCClient<TCPTransport<TLS>, StaticLoginCredentials>;
 /// it only observes requests and mutates queue state directly.
 ///
 /// Joins the channel and spawns the message-processing loop.
-#[allow(clippy::too_many_arguments)]
 pub fn spawn_for_channel(
     streamer_id: Uuid,
     twitch_login: String,
@@ -65,7 +63,6 @@ pub fn spawn_for_channel(
     });
 
     Ok((client, handle))
-    }
 }
 
 struct ChatContext {
@@ -76,63 +73,69 @@ struct ChatContext {
 
 async fn handle_privmsg(ctx: &ChatContext, pm: &PrivmsgMessage) -> anyhow::Result<()> {
     let user = TwitchUser {
-    id: pm.sender.id.clone(),
-    twitch_user_id: pm.sender.id.clone(),
-    login: pm.sender.login.clone(),
-    display_name: pm.sender.name.clone(),
-    is_mod: pm.badges.iter().any(|b| b.name == "moderator"),
-    is_sub: pm.badges.iter().any(|b| b.name == "subscriber"),
-    is_vip: pm.badges.iter().any(|b| b.name == "vip"),
+        id: pm.sender.id.clone(),
+        twitch_user_id: pm.sender.id.clone(),
+        login: pm.sender.login.clone(),
+        display_name: pm.sender.name.clone(),
+        is_mod: pm.badges.iter().any(|b| b.name == "moderator"),
+        is_sub: pm.badges.iter().any(|b| b.name == "subscriber"),
+        is_vip: pm.badges.iter().any(|b| b.name == "vip"),
     };
 
     let Some(command) = parse_command(&pm.channel_login, &user, &pm.message_text) else {
-    return Ok(());
+        return Ok(());
     };
 
     match command.command.as_str() {
-    "sr" | "songrequest" | "playsong" => {
-        metrics::record_twitch_message("sr", true);
-        let query = command.args.join(" ");
-        if query.is_empty() {
-            return Ok(());
-        }
+        "sr" | "songrequest" | "playsong" => {
+            metrics::record_twitch_message("sr", true);
+            let query = command.args.join(" ");
+            if query.is_empty() {
+                return Ok(());
+            }
 
-        match ctx.queue_manager.add_request(ctx.streamer_id, &user, &query, None).await {
-            Ok(song) => {
-                info!(
-                    "#{channel}: {name} queued '{title}' by {artist}",
-                    channel = ctx.channel_login,
-                    name = user.display_name,
-                    title = song.song.title,
-                    artist = song.song.artist
-                );
-                metrics::record_queue_operation("chat_add", true);
+            match ctx
+                .queue_manager
+                .add_request(ctx.streamer_id, &user, &query, None)
+                .await
+            {
+                Ok(song) => {
+                    info!(
+                        "#{channel}: {name} queued '{title}' by {artist}",
+                        channel = ctx.channel_login,
+                        name = user.display_name,
+                        title = song.song.title,
+                        artist = song.song.artist
+                    );
+                    metrics::record_queue_operation("chat_add", true);
+                }
+                Err(BotError::UserBlocked) => {
+                    debug!("blocked user {} attempted request", user.login)
+                }
+                Err(BotError::RateLimited) => debug!("{} hit rate limit", user.login),
+                Err(BotError::QueueFull) => debug!("queue full for #{}", ctx.channel_login),
+                Err(e) => {
+                    debug!("request failed for {}: {e}", user.login);
+                    metrics::record_queue_operation("chat_add", false);
+                }
             }
-            Err(BotError::UserBlocked) => debug!("blocked user {} attempted request", user.login),
-            Err(BotError::RateLimited) => debug!("{} hit rate limit", user.login),
-            Err(BotError::QueueFull) => debug!("queue full for #{}", ctx.channel_login),
-            Err(e) => {
-                debug!("request failed for {}: {e}", user.login);
-                metrics::record_queue_operation("chat_add", false);
+        }
+        "skip" | "voteskip" => {
+            metrics::record_twitch_message("voteskip", true);
+            if let Err(e) = ctx.queue_manager.vote_skip(ctx.streamer_id, &user).await {
+                warn!("vote skip failed in #{}: {e:#}", ctx.channel_login);
             }
         }
-    }
-    "skip" | "voteskip" => {
-        metrics::record_twitch_message("voteskip", true);
-        if let Err(e) = ctx.queue_manager.vote_skip(ctx.streamer_id, &user).await {
-            warn!("vote skip failed in #{}: {e:#}", ctx.channel_login);
+        "queue" | "songs" => {
+            metrics::record_twitch_message("queue", true);
+            // Queue contents are surfaced through the dashboard/overlay; we
+            // only log here to keep the anonymous connection read-only.
+            match ctx.queue_manager.get_queue(ctx.streamer_id).await {
+                Ok(queue) => debug!("#{} queue length: {}", ctx.channel_login, queue.len()),
+                Err(e) => error!("failed to fetch queue: {e:#}"),
+            }
         }
-    }
-    "queue" | "songs" => {
-        metrics::record_twitch_message("queue", true);
-        // Queue contents are surfaced through the dashboard/overlay; we
-        // only log here to keep the anonymous connection read-only.
-        match ctx.queue_manager.get_queue(ctx.streamer_id).await {
-            Ok(queue) => debug!("#{} queue length: {}", ctx.channel_login, queue.len()),
-            Err(e) => error!("failed to fetch queue: {e:#}"),
-        }
-    }
-    _ => {}
+        _ => {}
     }
 
     Ok(())
@@ -141,30 +144,30 @@ async fn handle_privmsg(ctx: &ChatContext, pm: &PrivmsgMessage) -> anyhow::Resul
 fn parse_command(channel: &str, user: &TwitchUser, text: &str) -> Option<ChatCommand> {
     let trimmed = text.trim();
     if !trimmed.starts_with('!') {
-    return None;
+        return None;
     }
 
     let mut parts = trimmed.splitn(2, char::is_whitespace);
     let command = parts.next()?.trim_start_matches('!').to_lowercase();
 
-    // Ignore commands that are clearly meant for other bots (e.g. !sr@nightbot).
+    // Ignore commands clearly aimed at other bots (e.g. !sr@nightbot).
     if let Some((_, target)) = command.split_once('@') {
-    if !target.eq_ignore_ascii_case(channel) && !target.eq_ignore_ascii_case("tmi.js") {
-        return None;
-    }
+        if !target.eq_ignore_ascii_case(channel) && !target.eq_ignore_ascii_case("tmi.js") {
+            return None;
+        }
     }
 
     let args = parts
-    .next()
-    .unwrap_or("")
-    .split_whitespace()
-    .map(str::to_string)
-    .collect();
+        .next()
+        .unwrap_or("")
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
 
     Some(ChatCommand {
-    command,
-    args,
-    raw_message: trimmed.to_string(),
-    user: user.clone(),
+        command,
+        args,
+        raw_message: trimmed.to_string(),
+        user: user.clone(),
     })
 }
