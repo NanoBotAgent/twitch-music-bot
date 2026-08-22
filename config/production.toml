@@ -1,5 +1,5 @@
 [server]
-host = "::"
+host = "[::]"
 port = 8380
 workers = 2
 
