@@ -11,14 +11,17 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use sqlx::PgPool;
-use tracing::error;
+use tracing::{error, warn};
 use uuid::Uuid;
+
+use twitch_music_shared::SearchResult;
 
 use crate::auth::{auth_state_injector, AuthUser, AuthState};
 use crate::config::Settings;
 use crate::database;
 use crate::middleware::check_rate_limit;
 use crate::music::MusicManager;
+use crate::queue::detect_source;
 use crate::queue::QueueManager;
 
 pub const API_PREFIX: &str = "/api/v1";
@@ -285,9 +288,36 @@ async fn search_songs(
         Err(e) => return internal_error("search_songs config", e),
     };
 
+    let query = params.q.trim();
+
+    if query.starts_with("http://") || query.starts_with("https://") {
+        if let Some((source, id_or_url)) = detect_source(query) {
+            let source_allowed = config.allowed_sources.iter().any(|s| s == source.as_str());
+            if source_allowed {
+                match state.music_manager.resolve(auth.streamer_id, source, &id_or_url).await {
+                    Ok(song) => {
+                        let results = vec![SearchResult {
+                            song,
+                            confidence: 1.0,
+                            matched_query: query.to_string(),
+                        }];
+                        return Json(ApiResponse::ok(json!({
+                            "results": results,
+                            "count": 1
+                        })))
+                            .into_response();
+                    }
+                    Err(e) => warn!("link resolution failed for {}: {}", query, e),
+                }
+            } else {
+                warn!("source {} not allowed for streamer {}", source, auth.streamer_id);
+            }
+        }
+    }
+
     let results = state
         .music_manager
-        .search(auth.streamer_id, params.q.trim(), limit, &config.allowed_sources)
+        .search(auth.streamer_id, query, limit, &config.allowed_sources)
         .await;
 
     Json(ApiResponse::ok(json!({ "results": results, "count": results.len() }))).into_response()

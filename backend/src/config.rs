@@ -72,6 +72,7 @@ pub struct SpotifyConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct YouTubeConfig {
+    pub api_key: SecretString,
     pub invidious_instances: Vec<String>,
     pub piped_instances: Vec<String>,
     pub fallback_to_ytdlp: bool,
@@ -264,14 +265,16 @@ impl Default for Settings {
                 rate_limit_per_second: 10,
             },
             youtube: YouTubeConfig {
+                api_key: SecretString::new("".into()),
                 invidious_instances: vec![
                     "https://yewtu.be".to_string(),
                     "https://inv.nadeko.net".to_string(),
-                    "https://invidious.snopyta.org".to_string(),
                 ],
                 piped_instances: vec![
-                    "https://pipedapi.kavin.rocks".to_string(),
-                    "https://piped-api.garudalinux.org".to_string(),
+                    "https://pipedapi.leptons.xyz".to_string(),
+                    "https://pipedapi.adminforge.de".to_string(),
+                    "https://api.piped.private.coffee".to_string(),
+                    "https://pipedapi.reallyaweso.me".to_string(),
                 ],
                 fallback_to_ytdlp: true,
                 ytdlp_path: None,

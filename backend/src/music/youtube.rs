@@ -16,6 +16,7 @@ use twitch_music_shared::*;
 #[derive(Debug)]
 pub struct YouTubeClient {
     client: Client,
+    api_key: String,
     invidious_instances: Vec<String>,
     piped_instances: Vec<String>,
     current_invidious: std::sync::atomic::AtomicUsize,
@@ -117,6 +118,7 @@ impl YouTubeClient {
 
         Ok(Self {
             client,
+            api_key: settings.youtube.api_key.expose_secret().to_string(),
             invidious_instances: settings.youtube.invidious_instances.clone(),
             piped_instances: settings.youtube.piped_instances.clone(),
             current_invidious: std::sync::atomic::AtomicUsize::new(0),
@@ -163,6 +165,14 @@ impl YouTubeClient {
     pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>, anyhow::Error> {
         let mut results = Vec::new();
 
+        if !self.api_key.is_empty() {
+            match self.search_data_api(query, limit).await {
+                Ok(api_results) if !api_results.is_empty() => return Ok(api_results),
+                Ok(_) => warn!("YouTube Data API search returned no results for '{}'", query),
+                Err(e) => warn!("YouTube Data API search failed, falling back to mirrors: {}", e),
+            }
+        }
+
         if let Ok(invidious_results) = self.search_invidious(query, limit).await {
             results.extend(invidious_results);
         }
@@ -180,6 +190,94 @@ impl YouTubeClient {
         });
         results.truncate(limit);
         Ok(results)
+    }
+
+    async fn search_data_api(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>, anyhow::Error> {
+        let limit_str = limit.clamp(1, 50).to_string();
+        let url = "https://www.googleapis.com/youtube/v3/search";
+        let response: YtDataSearchResponse = self
+            .client
+            .get(url)
+            .query(&[
+                ("part", "snippet"),
+                ("type", "video"),
+                ("q", query),
+                ("maxResults", limit_str.as_str()),
+                ("key", self.api_key.as_str()),
+            ])
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        let mut results = Vec::new();
+        for item in response.items {
+            let Some(video_id) = item.id.video_id else { continue };
+            if item.snippet.live_broadcast_content.as_deref() == Some("live") {
+                continue;
+            }
+            results.push(SearchResult {
+                song: Song {
+                    id: Uuid::nil(),
+                    source: MusicSource::YouTube,
+                    source_id: video_id,
+                    title: item.snippet.title,
+                    artist: item.snippet.channel_title,
+                    duration_seconds: None,
+                    thumbnail_url: pick_thumbnail(&item.snippet.thumbnails),
+                    stream_url: None,
+                    explicit: false,
+                    metadata: HashMap::new(),
+                    created_at: Utc::now(),
+                    updated_at: Utc::now(),
+                },
+                confidence: 0.95,
+                matched_query: query.to_string(),
+            });
+            if results.len() >= limit {
+                break;
+            }
+        }
+        Ok(results)
+    }
+
+    async fn get_video_info_data_api(&self, video_id: &str) -> Result<Song, anyhow::Error> {
+        let url = "https://www.googleapis.com/youtube/v3/videos";
+        let response: YtDataVideosResponse = self
+            .client
+            .get(url)
+            .query(&[
+                ("part", "snippet,contentDetails"),
+                ("id", video_id),
+                ("key", self.api_key.as_str()),
+            ])
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        let video = response
+            .items
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("video {} not found on YouTube Data API", video_id))?;
+
+        Ok(Song {
+            id: Uuid::nil(),
+            source: MusicSource::YouTube,
+            source_id: video.id,
+            title: video.snippet.title,
+            artist: video.snippet.channel_title,
+            duration_seconds: parse_iso8601_duration(&video.content_details.duration).map(|d| d as i32),
+            thumbnail_url: pick_thumbnail(&video.snippet.thumbnails),
+            stream_url: None,
+            explicit: false,
+            metadata: HashMap::new(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        })
     }
 
     async fn search_invidious(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>, anyhow::Error> {
@@ -354,6 +452,13 @@ impl YouTubeClient {
     }
 
     pub async fn get_video_info(&self, video_id: &str) -> Result<Song, anyhow::Error> {
+        if !self.api_key.is_empty() {
+            match self.get_video_info_data_api(video_id).await {
+                Ok(song) => return Ok(song),
+                Err(e) => warn!("YouTube Data API video info failed for {}, falling back to mirrors: {}", video_id, e),
+            }
+        }
+
         let url = format!("{}/api/v1/videos/{}", self.get_invidious_url()?, video_id);
         let response = self.client.get(&url).send().await?;
 
@@ -406,4 +511,93 @@ impl YouTubeClient {
 
         None
     }
+}
+
+fn pick_thumbnail(thumbs: &YtDataThumbnails) -> Option<String> {
+    thumbs
+        .high
+        .as_ref()
+        .or(thumbs.medium.as_ref())
+        .or(thumbs.default_.as_ref())
+        .map(|t| t.url.clone())
+}
+
+fn parse_iso8601_duration(s: &str) -> Option<i64> {
+    let s = s.strip_prefix("PT")?;
+    let s = s.split('.').next()?;
+    let mut total = 0i64;
+    let mut num = String::new();
+    for c in s.chars() {
+        match c {
+            '0'..='9' => num.push(c),
+            'H' => {
+                total += num.parse::<i64>().ok()? * 3600;
+                num.clear();
+            }
+            'M' => {
+                total += num.parse::<i64>().ok()? * 60;
+                num.clear();
+            }
+            'S' => {
+                total += num.parse::<i64>().ok()?;
+                num.clear();
+            }
+            _ => return None,
+        }
+    }
+    Some(total)
+}
+
+#[derive(Debug, Deserialize)]
+struct YtDataSearchResponse {
+    items: Vec<YtDataSearchItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct YtDataSearchItem {
+    id: YtDataVideoId,
+    snippet: YtDataSnippet,
+}
+
+#[derive(Debug, Deserialize)]
+struct YtDataVideoId {
+    video_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct YtDataVideosResponse {
+    items: Vec<YtDataVideo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct YtDataVideo {
+    id: String,
+    snippet: YtDataSnippet,
+    content_details: YtDataContentDetails,
+}
+
+#[derive(Debug, Deserialize)]
+struct YtDataContentDetails {
+    duration: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct YtDataSnippet {
+    title: String,
+    channel_title: String,
+    live_broadcast_content: Option<String>,
+    thumbnails: YtDataThumbnails,
+}
+
+#[derive(Debug, Deserialize)]
+struct YtDataThumbnails {
+    #[serde(rename = "default")]
+    default_: Option<YtDataThumb>,
+    medium: Option<YtDataThumb>,
+    high: Option<YtDataThumb>,
+}
+
+#[derive(Debug, Deserialize)]
+struct YtDataThumb {
+    url: String,
 }
