@@ -2,6 +2,7 @@
 
 use chrono::Utc;
 use reqwest::{Client, ClientBuilder};
+use secrecy::ExposeSecret;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::time::Duration;
