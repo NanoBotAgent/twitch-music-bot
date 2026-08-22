@@ -6,6 +6,9 @@ on:
       path:
         description: "WebDAV path to dump (file) or list+dump (dir ending in /)"
         default: "/admin/logs/"
+      grep_pattern:
+        description: "optional grep filter for files"
+        default: ""
 
 jobs:
   fetch-logs:
@@ -15,6 +18,7 @@ jobs:
         env:
           AD_WEBDAV_PASSWORD: ${{ secrets.ALWAYSDATA_WEBDAV_PASSWORD }}
           LOG_PATH: ${{ github.event.inputs.path }}
+          GREP_PATTERN: ${{ github.event.inputs.grep_pattern }}
         run: |
           set -uo pipefail
           AUTH="twitch-bot:${AD_WEBDAV_PASSWORD}"
@@ -28,5 +32,10 @@ jobs:
           else
             code=$(curl -sS --basic --user "$AUTH" -o /tmp/file.out -w '%{http_code}' "$BASE$LOG_PATH" || true)
             echo "== GET $LOG_PATH -> $code =="
-            tail -n 300 /tmp/file.out || true
+            if [ -n "$GREP_PATTERN" ]; then
+              grep -aE "$GREP_PATTERN" /tmp/file.out | tail -n 400 || true
+            else
+              wc -l /tmp/file.out || true
+              tail -n 300 /tmp/file.out || true
+            fi
           fi
