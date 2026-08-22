@@ -7,6 +7,7 @@ import { getAccessToken, startTwitchLogin } from "@/lib/api";
 export default function LandingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Already logged in? Go straight to the dashboard.
@@ -17,10 +18,12 @@ export default function LandingPage() {
 
   async function login() {
     setLoading(true);
+    setError(null);
     try {
       const url = await startTwitchLogin();
       window.location.assign(url);
     } catch {
+      setError("Could not start login. The server may still be starting up — try again in a minute.");
       setLoading(false);
     }
   }
@@ -38,6 +41,7 @@ export default function LandingPage() {
         <button onClick={login} disabled={loading} className="btn-primary mt-8 w-full py-3 text-base">
           {loading ? "Redirecting..." : "Log in with Twitch"}
         </button>
+        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
       </div>
     </main>
   );
