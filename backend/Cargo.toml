@@ -25,7 +25,7 @@ serde_json = "1.0"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "migrate"] }
 
 # Twitch
-twitch-irc = "5.0"
+twitch-irc = { version = "5.0", default-features = false, features = ["transport-tcp", "transport-tcp-tls"] }
 
 # HTTP client
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip"], default-features = false }
