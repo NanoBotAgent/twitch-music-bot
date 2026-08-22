@@ -32,19 +32,19 @@ def call(path, method="GET", data=None):
 
 DIRECTIVES = "\n".join([
     "ProxyPreserveHost On",
-    'ProxyPass "/ws/overlay" "ws://127.0.0.1:%d/ws/overlay"' % PORT,
-    'ProxyPassReverse "/ws/overlay" "ws://127.0.0.1:%d/ws/overlay"' % PORT,
-    'ProxyPass "/api/v1/overlay" "ws://127.0.0.1:%d/api/v1/overlay"' % PORT,
-    'ProxyPassReverse "/api/v1/overlay" "ws://127.0.0.1:%d/api/v1/overlay"' % PORT,
-    'ProxyPass "/" "http://127.0.0.1:%d/"' % PORT,
-    'ProxyPassReverse "/" "http://127.0.0.1:%d/"' % PORT,
+    'ProxyPass "/ws/overlay" "ws://services-twitch-bot.alwaysdata.net:%d/ws/overlay"' % PORT,
+    'ProxyPassReverse "/ws/overlay" "ws://services-twitch-bot.alwaysdata.net:%d/ws/overlay"' % PORT,
+    'ProxyPass "/api/v1/overlay" "ws://services-twitch-bot.alwaysdata.net:%d/api/v1/overlay"' % PORT,
+    'ProxyPassReverse "/api/v1/overlay" "ws://services-twitch-bot.alwaysdata.net:%d/api/v1/overlay"' % PORT,
+    'ProxyPass "/" "http://services-twitch-bot.alwaysdata.net:%d/"' % PORT,
+    'ProxyPassReverse "/" "http://services-twitch-bot.alwaysdata.net:%d/"' % PORT,
     'RequestHeader set X-Forwarded-Proto "https"',
 ])
 
 env_string = " ".join([
     "ENVIRONMENT=production",
     "RUST_LOG=info",
-    "APP__SERVER__HOST=127.0.0.1",
+    "APP__SERVER__HOST=::",
     f"APP__SERVER__PORT={PORT}",
     f"APP__DATABASE__URL={os.environ['NEON_DATABASE_URL']}",
     f"APP__SECURITY__JWT_SECRET={os.environ['JWT_SECRET']}",
