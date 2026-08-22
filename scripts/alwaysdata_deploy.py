@@ -79,13 +79,7 @@ if st != 200 or not isinstance(svcs, list):
     raise SystemExit(f"failed to list services: {st} {svcs}")
 
 
-def svc_ssh_id(s):
-    su = s.get("ssh_user")
-    return su.get("id") if isinstance(su, dict) else su
-
-
-existing = [s for s in svcs
-            if svc_ssh_id(s) == ssh_id and s.get("command") == service_payload["command"]]
+existing = [s for s in svcs if s.get("command") == service_payload["command"]]
 if existing:
     sid = existing[0]["id"]
     st, resp = call(f"/service/{sid}/", "PATCH", service_payload)
@@ -99,7 +93,7 @@ else:
         raise SystemExit("service create failed")
     st2, svcs2 = call("/service/")
     cands = [s for s in (svcs2 if isinstance(svcs2, list) else [])
-             if svc_ssh_id(s) == ssh_id and s.get("command") == service_payload["command"]]
+             if s.get("command") == service_payload["command"]]
     if not cands:
         raise SystemExit("created service not found after listing")
     sid = max(s["id"] for s in cands)
