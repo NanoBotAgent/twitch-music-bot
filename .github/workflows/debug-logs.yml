@@ -2,34 +2,44 @@ name: Debug Logs
 
 on:
   workflow_dispatch:
-    inputs:
-      mode:
-        description: "probe = test youtube mirrors"
-        default: "probe"
-      video_id:
-        description: "video id to probe"
-        default: "9DyWHHxzMR0"
 
 jobs:
-  probe:
+  test-search:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe YouTube mirror instances
+      - name: End-to-end search test with YouTube API key
         env:
-          VID: ${{ github.event.inputs.video_id }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          YT_LINK: "https://music.youtube.com/watch?v=9DyWHHxzMR0"
         run: |
-          set -u
-          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
+          set -uo pipefail
+          SID=$(psql "$NEON_DATABASE_URL" -tAc "select id from streamers limit 1")
+          echo "streamer_id=$SID"
 
-          echo "### INVIDIOUS /api/v1/videos/$VID ###"
-          for host in yewtu.be inv.nadeko.net invidious.f5.si iv.melmac.space invidious.privacyredirect.com; do
-            out=$(curl -sS -m 8 -A "$UA" -w "|HTTP=%{http_code}" "https://$host/api/v1/videos/$VID" 2>&1 | tail -c 200)
-            echo "$host -> $out"
-          done
+          TOKEN=$(python3 - "$SID" <<'PYEOF'
+          import sys, json, hmac, hashlib, base64, time
 
+          sid = sys.argv[1]
+          secret = __import__('os').environ['JWT_SECRET']
+          b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b'=')
+          now = int(time.time())
+          header = b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+          payload = b64(json.dumps({"sub": sid, "iat": now, "exp": now + 600, "token_type": "access"}).encode())
+          signing_input = header + b"." + payload
+          sig = b64(hmac.new(secret.encode(), signing_input, hashlib.sha256).digest())
+          print((signing_input + b"." + sig).decode())
+          PYEOF
+          )
+
+          echo "== SEARCH with pasted music.youtube.com link =="
+          curl -sS -m 30 -X GET \
+            -H "Authorization: Bearer $TOKEN" \
+            -G --data-urlencode "q=$YT_LINK" \
+            "https://twitch-bot.alwaysdata.net/api/v1/search" | head -c 1500
           echo ""
-          echo "### PIPED /streams/$VID ###"
-          for host in pipedapi.leptons.xyz pipedapi.adminforge.de api.piped.private.coffee pipedapi.reallyaweso.me pipedapi.ducks.party pipedapi.drgns.space; do
-            out=$(curl -sS -m 8 -A "$UA" -w "|HTTP=%{http_code}" "https://$host/streams/$VID" 2>&1 | tail -c 200)
-            echo "$host -> $out"
-          done
+          echo "== SEARCH text query (regression check) =="
+          curl -sS -m 30 -X GET \
+            -H "Authorization: Bearer $TOKEN" \
+            -G --data-urlencode "q=dio ze roepen" \
+            "https://twitch-bot.alwaysdata.net/api/v1/search" | head -c 800
