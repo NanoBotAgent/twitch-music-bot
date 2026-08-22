@@ -50,13 +50,14 @@ jobs:
           BINARY="target/x86_64-unknown-linux-musl/release/twitch-music-bot"
           AUTH="twitch-bot:${AD_WEBDAV_PASSWORD}"
           ROOT=""
+          FOUND=0
           for cand in "/${AD_ACCOUNT}" ""; do
             code=$(curl -sS --basic --user "$AUTH" -o /dev/null -w '%{http_code}' \
               -X PROPFIND -H 'Depth: 1' "https://webdav-twitch-bot.alwaysdata.net${cand}/" || true)
             echo "PROPFIND ${cand:-/} -> $code"
-            if [ "$code" = "207" ]; then ROOT="$cand"; break; fi
+            if [ "$code" = "207" ]; then ROOT="$cand"; FOUND=1; break; fi
           done
-          if [ -z "$ROOT" ]; then
+          if [ "$FOUND" != "1" ]; then
             echo "::error::Could not locate WebDAV root"
             exit 1
           fi
