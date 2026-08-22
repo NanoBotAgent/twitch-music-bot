@@ -4,22 +4,17 @@ on:
   workflow_dispatch:
 
 jobs:
-  stream-probe:
+  ytdlp-probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe stream sources
+      - name: Test yt-dlp stream extraction from datacenter IP
         run: |
           set -u
-          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
-          VID="9DyWHHxzMR0"
-          echo "### PIPED /streams/$VID ###"
-          for host in pipedapi.leptons.xyz api.piped.private.coffee pipedapi.adminforge.de pipedapi.reallyaweso.me pipedapi.drgns.space; do
-            out=$(curl -sS -m 10 -A "$UA" -w "|HTTP=%{http_code}" "https://$host/streams/$VID" 2>&1 | tail -c 260)
-            echo "$host -> $out"
-          done
+          curl -sS -L -o ytdlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
+          chmod +x ytdlp
+          ./ytdlp --version
+          echo "== get stream url =="
+          ./ytdlp -f "bestaudio" --no-warnings --get-url "https://www.youtube.com/watch?v=9DyWHHxzMR0" 2>&1 | head -c 400
           echo ""
-          echo "### INVIDIOUS video formats ###"
-          for host in yewtu.be inv.nadeko.net invidious.f5.si; do
-            out=$(curl -sS -m 10 -A "$UA" -w "|HTTP=%{http_code}" "https://$host/api/v1/videos/$VID?fields=adaptiveFormats" 2>&1 | tail -c 200)
-            echo "$host -> $out"
-          done
+          echo "== with android client fallback =="
+          ./ytdlp -f "bestaudio" --extractor-args "youtube:player_client=default,android" --no-warnings --get-url "https://www.youtube.com/watch?v=9DyWHHxzMR0" 2>&1 | head -c 400
