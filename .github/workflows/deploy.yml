@@ -1,0 +1,73 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "backend/**"
+      - "shared/**"
+      - "config/production.toml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "scripts/alwaysdata_deploy.py"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install musl toolchain
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: musl-release
+
+      - name: Build static binary
+        run: cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Upload binary via WebDAV
+        env:
+          AD_ACCOUNT: twitch-bot
+          AD_WEBDAV_PASSWORD: ${{ secrets.ALWAYSDATA_WEBDAV_PASSWORD }}
+        run: |
+          set -euo pipefail
+          BINARY="target/x86_64-unknown-linux-musl/release/twitch-music-bot"
+          AUTH="twitch-bot:${AD_WEBDAV_PASSWORD}"
+          ROOT=""
+          for cand in "/${AD_ACCOUNT}" ""; do
+            code=$(curl -sS --basic --user "$AUTH" -o /dev/null -w '%{http_code}' \
+              -X PROPFIND -H 'Depth: 1' "https://webdav.alwaysdata.com${cand}/" || true)
+            echo "PROPFIND ${cand:-/} -> $code"
+            if [ "$code" = "207" ]; then ROOT="$cand"; break; fi
+          done
+          if [ -z "$ROOT" ]; then
+            echo "::error::Could not locate WebDAV root"
+            exit 1
+          fi
+          curl -sS --basic --user "$AUTH" -X MKCOL "https://webdav.alwaysdata.com${ROOT}/app/" || true
+          curl -fS --basic --user "$AUTH" -T "$BINARY" \
+            "https://webdav.alwaysdata.com${ROOT}/app/twitch-music-bot"
+
+      - name: Configure Alwaysdata and restart service
+        env:
+          AD_API_KEY: ${{ secrets.ALWAYSDATA_API_KEY }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+        run: python3 scripts/alwaysdata_deploy.py

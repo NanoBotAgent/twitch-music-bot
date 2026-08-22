@@ -1,0 +1,22 @@
+[server]
+host = "127.0.0.1"
+port = 8380
+workers = 2
+
+[database]
+max_connections = 5
+
+[twitch]
+redirect_uri = "https://twitch-bot.alwaysdata.net/auth/twitch/callback"
+
+[spotify]
+redirect_uri = "https://twitch-bot.alwaysdata.net/auth/spotify/callback"
+
+[security]
+cors_allowed_origins = ["https://twitch-bot.alwaysdata.net", "https://*.vercel.app"]
+
+[logging]
+level = "info"
+
+[metrics]
+enabled = false

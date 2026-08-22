@@ -1,0 +1,101 @@
+import json
+import os
+import time
+import urllib.error
+import urllib.request
+import base64
+
+API = "https://api.alwaysdata.com/v1"
+SITE_ID = 1070074
+PUBLIC_URL = "https://twitch-bot.alwaysdata.net"
+PORT = 8380
+
+KEY = os.environ["AD_API_KEY"]
+AUTH = base64.b64encode(f"{KEY}:".encode()).decode()
+
+
+def call(path, method="GET", data=None):
+    req = urllib.request.Request(
+        f"{API}{path}",
+        method=method,
+        data=json.dumps(data).encode() if data is not None else None,
+        headers={"Authorization": f"Basic {AUTH}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req) as r:
+            body = r.read().decode()
+            return r.status, (json.loads(body) if body else {})
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()[:400]
+
+
+DIRECTIVES = "\n".join([
+    "ProxyPreserveHost On",
+    'ProxyPass "/ws/overlay" "ws://127.0.0.1:%d/ws/overlay"' % PORT,
+    'ProxyPassReverse "/ws/overlay" "ws://127.0.0.1:%d/ws/overlay"' % PORT,
+    'ProxyPass "/api/v1/overlay" "ws://127.0.0.1:%d/api/v1/overlay"' % PORT,
+    'ProxyPassReverse "/api/v1/overlay" "ws://127.0.0.1:%d/api/v1/overlay"' % PORT,
+    'ProxyPass "/" "http://127.0.0.1:%d/"' % PORT,
+    'ProxyPassReverse "/" "http://127.0.0.1:%d/"' % PORT,
+    'RequestHeader set X-Forwarded-Proto "https"',
+])
+
+env_string = " ".join([
+    "ENVIRONMENT=production",
+    "RUST_LOG=info",
+    "APP__SERVER__HOST=127.0.0.1",
+    f"APP__SERVER__PORT={PORT}",
+    f"APP__DATABASE__URL={os.environ['NEON_DATABASE_URL']}",
+    f"APP__SECURITY__JWT_SECRET={os.environ['JWT_SECRET']}",
+    f"APP__SECURITY__ENCRYPTION_KEY={os.environ['ENCRYPTION_KEY']}",
+])
+
+service_payload = {
+    "name": "backend",
+    "ssh_user": "twitch-bot",
+    "working_directory": "app",
+    "command": "sh -c 'chmod +x ./twitch-music-bot && exec ./twitch-music-bot'",
+    "environment": env_string,
+    "check_health_command": f"curl -fsS http://127.0.0.1:{PORT}/health",
+}
+
+st, _ = call(f"/site/{SITE_ID}/", "PATCH", {
+    "vhost_additional_directives": DIRECTIVES,
+    "ssl_force": True,
+})
+print("site patch:", st)
+
+st, svcs = call("/service/")
+if st != 200 or not isinstance(svcs, list):
+    raise SystemExit(f"failed to list services: {st} {svcs}")
+
+existing = [s for s in svcs if s.get("name") == service_payload["name"]]
+if existing:
+    sid = existing[0]["id"]
+    st, resp = call(f"/service/{sid}/", "PATCH", service_payload)
+    print("service patch:", st)
+else:
+    st, resp = call("/service/", "POST", service_payload)
+    print("service create:", st)
+    sid = resp.get("id")
+    if sid is None and isinstance(resp.get("href"), str):
+        sid = int(resp["href"].rstrip("/").split("/")[-1])
+if not isinstance(sid, int):
+    raise SystemExit(f"no service id: {resp}")
+
+st, _ = call(f"/service/{sid}/restart/", "POST")
+print("service restart:", st)
+
+for i in range(30):
+    time.sleep(5)
+    try:
+        with urllib.request.urlopen(f"{PUBLIC_URL}/health", timeout=10) as r:
+            print(f"health: {r.status} after ~{(i + 1) * 5}s")
+            print(r.read().decode()[:200])
+            raise SystemExit(0)
+    except SystemExit:
+        raise
+    except Exception as e:
+        print(f"[{(i + 1) * 5}s] waiting: {e}")
+
+raise SystemExit("health check failed after 150s")
