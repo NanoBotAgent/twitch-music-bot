@@ -576,3 +576,17 @@ impl QueueManager {
             .collect())
     }
 }
+
+/// Detects the music source from a direct URL.
+fn detect_source(url: &str) -> Option<(MusicSource, String)> {
+    let lower = url.to_lowercase();
+    if lower.contains("youtube.com") || lower.contains("youtu.be") {
+        Some((MusicSource::YouTube, url.to_string()))
+    } else if lower.contains("soundcloud.com") {
+        Some((MusicSource::SoundCloud, url.to_string()))
+    } else if lower.contains("spotify.com") || lower.starts_with("spotify:") {
+        Some((MusicSource::Spotify, url.to_string()))
+    } else {
+        None
+    }
+}

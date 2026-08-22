@@ -121,7 +121,7 @@ impl SpotifyClient {
             .refresh_token
             .ok_or_else(|| anyhow::anyhow!("Spotify refresh token missing; reconnect Spotify"))?;
 
-        let access = crypto::decrypt(&self.aes_key_hint(), std::str::from_utf8(&access_enc)?)?;
+        let access = crypto::decrypt(&self.aes_key(), std::str::from_utf8(&access_enc)?)?;
 
         // Refresh when expired or about to expire within 60 seconds.
         let needs_refresh = match tokens.expires_at {
@@ -134,7 +134,7 @@ impl SpotifyClient {
         }
 
         debug!("Refreshing Spotify token for streamer {streamer_id}");
-        let refresh = crypto::decrypt(&self.aes_key_hint(), std::str::from_utf8(&refresh_enc)?)?;
+        let refresh = crypto::decrypt(&self.aes_key(), std::str::from_utf8(&refresh_enc)?)?;
 
         let resp = self
             .http
@@ -150,7 +150,7 @@ impl SpotifyClient {
             .json::<SpotifyTokenResponse>()
             .await?;
 
-        let enc_access = crypto::encrypt(&self.aes_key_hint(), &resp.access_token)?;
+        let enc_access = crypto::encrypt(&self.aes_key(), &resp.access_token)?;
         let expires_at = resp.expires_in.map(|s| Utc::now() + chrono::Duration::seconds(s));
         let scope: Vec<String> = resp
             .scope
