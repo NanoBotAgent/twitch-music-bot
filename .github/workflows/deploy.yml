@@ -64,6 +64,11 @@ jobs:
           curl -sS --basic --user "$AUTH" -X MKCOL "https://webdav-twitch-bot.alwaysdata.net${ROOT}/app/" || true
           curl -fS --basic --user "$AUTH" -T "$BINARY" \
             "https://webdav-twitch-bot.alwaysdata.net${ROOT}/app/twitch-music-bot"
+          curl -sS --basic --user "$AUTH" -X MKCOL "https://webdav-twitch-bot.alwaysdata.net${ROOT}/app/config/" || true
+          curl -fS --basic --user "$AUTH" -T config/default.toml \
+            "https://webdav-twitch-bot.alwaysdata.net${ROOT}/app/config/default.toml"
+          curl -fS --basic --user "$AUTH" -T config/production.toml \
+            "https://webdav-twitch-bot.alwaysdata.net${ROOT}/app/config/production.toml"
 
       - name: Configure Alwaysdata and restart service
         env:
