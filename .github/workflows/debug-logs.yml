@@ -14,7 +14,7 @@ jobs:
           set -u
           AUTH="twitch-bot:${AD_WEBDAV_PASSWORD}"
           BASE="https://webdav-twitch-bot.alwaysdata.net"
-          curl -sS --basic --user "$AUTH" "$BASE/admin/logs/services/2026/29147-2026-08-22.log" -o /tmp/svc.log
+          curl -sS --basic --user "$AUTH" "$BASE/admin/logs/services/2026/29147-2026-08-23.log" -o /tmp/svc.log
           echo "== last 60 lines =="
           tail -n 60 /tmp/svc.log
 
