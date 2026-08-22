@@ -52,7 +52,7 @@ jobs:
           ROOT=""
           for cand in "/${AD_ACCOUNT}" ""; do
             code=$(curl -sS --basic --user "$AUTH" -o /dev/null -w '%{http_code}' \
-              -X PROPFIND -H 'Depth: 1' "https://webdav.alwaysdata.com${cand}/" || true)
+              -X PROPFIND -H 'Depth: 1' "https://webdav-twitch-bot.alwaysdata.net${cand}/" || true)
             echo "PROPFIND ${cand:-/} -> $code"
             if [ "$code" = "207" ]; then ROOT="$cand"; break; fi
           done
@@ -60,9 +60,9 @@ jobs:
             echo "::error::Could not locate WebDAV root"
             exit 1
           fi
-          curl -sS --basic --user "$AUTH" -X MKCOL "https://webdav.alwaysdata.com${ROOT}/app/" || true
+          curl -sS --basic --user "$AUTH" -X MKCOL "https://webdav-twitch-bot.alwaysdata.net${ROOT}/app/" || true
           curl -fS --basic --user "$AUTH" -T "$BINARY" \
-            "https://webdav.alwaysdata.com${ROOT}/app/twitch-music-bot"
+            "https://webdav-twitch-bot.alwaysdata.net${ROOT}/app/twitch-music-bot"
 
       - name: Configure Alwaysdata and restart service
         env:
