@@ -4,10 +4,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-search:
+  diag:
     runs-on: ubuntu-latest
     steps:
-      - name: End-to-end search test with YouTube API key
+      - name: Tail backend log
+        env:
+          AD_WEBDAV_PASSWORD: ${{ secrets.ALWAYSDATA_WEBDAV_PASSWORD }}
+        run: |
+          set -u
+          AUTH="twitch-bot:${AD_WEBDAV_PASSWORD}"
+          BASE="https://webdav-twitch-bot.alwaysdata.net"
+          curl -sS --basic --user "$AUTH" "$BASE/admin/logs/services/2026/29147-2026-08-22.log" -o /tmp/svc.log
+          echo "== last 60 lines =="
+          tail -n 60 /tmp/svc.log
+
+      - name: Link search test
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -15,31 +26,22 @@ jobs:
         run: |
           set -uo pipefail
           SID=$(psql "$NEON_DATABASE_URL" -tAc "select id from streamers limit 1")
-          echo "streamer_id=$SID"
-
           TOKEN=$(python3 - "$SID" <<'PYEOF'
-          import sys, json, hmac, hashlib, base64, time
-
+          import sys, json, hmac, hashlib, base64, time, os
           sid = sys.argv[1]
-          secret = __import__('os').environ['JWT_SECRET']
+          secret = os.environ['JWT_SECRET']
           b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b'=')
           now = int(time.time())
           header = b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
           payload = b64(json.dumps({"sub": sid, "iat": now, "exp": now + 600, "token_type": "access"}).encode())
-          signing_input = header + b"." + payload
-          sig = b64(hmac.new(secret.encode(), signing_input, hashlib.sha256).digest())
-          print((signing_input + b"." + sig).decode())
+          si = header + b"." + payload
+          sig = b64(hmac.new(secret.encode(), si, hashlib.sha256).digest())
+          print((si + b"." + sig).decode())
           PYEOF
           )
-
-          echo "== SEARCH with pasted music.youtube.com link =="
-          curl -sS -m 30 -X GET \
+          echo "== LINK SEARCH =="
+          curl -sS -m 30 \
             -H "Authorization: Bearer $TOKEN" \
             -G --data-urlencode "q=$YT_LINK" \
-            "https://twitch-bot.alwaysdata.net/api/v1/search" | head -c 1500
+            "https://twitch-bot.alwaysdata.net/api/v1/search"
           echo ""
-          echo "== SEARCH text query (regression check) =="
-          curl -sS -m 30 -X GET \
-            -H "Authorization: Bearer $TOKEN" \
-            -G --data-urlencode "q=dio ze roepen" \
-            "https://twitch-bot.alwaysdata.net/api/v1/search" | head -c 800
