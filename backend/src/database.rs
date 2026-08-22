@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(clippy::type_complexity)]
+
 use chrono::{DateTime, Duration, Utc};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;

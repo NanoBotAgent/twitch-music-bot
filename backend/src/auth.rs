@@ -90,7 +90,7 @@ fn unauthorized(code: &str, message: &str) -> Response {
 }
 
 fn issue_tokens(state: &AuthState, streamer_id: Uuid) -> anyhow::Result<(String, String)> {
-    let now = i64::try_from(Utc::now().timestamp())?;
+    let now = Utc::now().timestamp();
     let access_exp = now + Duration::hours(state.settings.security.jwt_expiry_hours).num_seconds();
     let refresh_exp = now + state.settings.security.refresh_token_days * 24 * 60 * 60;
 
@@ -478,7 +478,7 @@ async fn provider_callback(
 
     let expires_at = token
         .expires_in
-        .map(|secs| Utc::now() + Duration::seconds(i64::from(secs)));
+        .map(|secs| Utc::now() + Duration::seconds(secs));
     let scope: Vec<String> = token
         .scope
         .map(|s| s.split_whitespace().map(str::to_string).collect())

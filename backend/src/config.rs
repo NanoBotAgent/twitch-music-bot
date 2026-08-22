@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(clippy::type_complexity)]
+
 use config::{Config, Environment, File};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;

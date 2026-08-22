@@ -244,7 +244,7 @@ async fn get_history(
     AxumQuery(params): AxumQuery<HistoryParams>,
 ) -> Response {
     let limit = params.limit.unwrap_or(20).clamp(1, 100);
-    match database::history::recent(&state.pool, auth.streamer_id, i64::from(limit)).await {
+    match database::history::recent(&state.pool, auth.streamer_id, limit).await {
         Ok(rows) => Json(ApiResponse::ok(json!({ "items": rows, "count": rows.len() }))).into_response(),
         Err(e) => internal_error("get_history failed", e),
     }

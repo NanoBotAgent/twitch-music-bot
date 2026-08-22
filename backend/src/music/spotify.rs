@@ -151,7 +151,7 @@ impl SpotifyClient {
             .await?;
 
         let enc_access = crypto::encrypt(&self.aes_key_hint(), &resp.access_token)?;
-        let expires_at = resp.expires_in.map(|s| Utc::now() + chrono::Duration::seconds(i64::from(s)));
+        let expires_at = resp.expires_in.map(|s| Utc::now() + chrono::Duration::seconds(s));
         let scope: Vec<String> = resp
             .scope
             .map(|s| s.split_whitespace().map(str::to_string).collect())
