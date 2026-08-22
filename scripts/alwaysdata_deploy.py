@@ -41,7 +41,7 @@ DIRECTIVES = "\n".join([
     'RequestHeader set X-Forwarded-Proto "https"',
 ])
 
-env_string = " ".join([
+env_parts = [
     "ENVIRONMENT=production",
     "RUST_LOG=info",
     "APP__SERVER__HOST=[::]",
@@ -49,7 +49,15 @@ env_string = " ".join([
     f"APP__DATABASE__URL={os.environ['NEON_DATABASE_URL']}",
     f"APP__SECURITY__JWT_SECRET={os.environ['JWT_SECRET']}",
     f"APP__SECURITY__ENCRYPTION_KEY={os.environ['ENCRYPTION_KEY']}",
-])
+]
+spotify_id = os.environ.get("SPOTIFY_CLIENT_ID", "")
+spotify_secret = os.environ.get("SPOTIFY_CLIENT_SECRET", "")
+if spotify_id.strip() and spotify_secret.strip():
+    env_parts.append(f"APP__SPOTIFY__CLIENT_ID={spotify_id}")
+    env_parts.append(f"APP__SPOTIFY__CLIENT_SECRET={spotify_secret}")
+else:
+    print("Spotify credentials not set; skipping APP__SPOTIFY__* env vars")
+env_string = " ".join(env_parts)
 
 service_payload = {
     "name": "backend",
