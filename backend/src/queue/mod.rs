@@ -1,4 +1,5 @@
 #![allow(clippy::type_complexity)]
+#![allow(clippy::result_large_err)]
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ use crate::music::MusicManager;
 use twitch_music_shared::*;
 
 /// Events emitted to internal consumers (API layer) about queue changes.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum QueueNotification {
     SongStarted(QueuedSong),
@@ -65,10 +67,6 @@ impl QueueManager {
     }
 
     // -- accessors ---------------------------------------------------------
-
-    pub fn subscribe_shutdown(&self) -> broadcast::Receiver<()> {
-        self.shutdown_tx.subscribe()
-    }
 
     pub async fn get_current_song(&self, streamer_id: Uuid) -> Option<QueuedSong> {
         self.current_song
@@ -206,12 +204,26 @@ impl QueueManager {
             return Err(BotError::QueueFull);
         }
 
-        // Search across enabled sources.
-        let results = self
-            .music_manager
-            .search(streamer_id, query, 5, &config.allowed_sources)
-            .await;
-        let mut best = results.into_iter().next().ok_or(BotError::NotFound)?;
+        // Direct links are resolved against their source; everything else
+        // goes through multi-source search.
+        let mut best = if query.starts_with("http://") || query.starts_with("https://") {
+            let Some((source, id_or_url)) = detect_source(query) else {
+                return Err(BotError::NotFound);
+            };
+            match self.music_manager.resolve(streamer_id, source, &id_or_url).await {
+                Ok(song) => SearchResult { song, confidence: 1.0, matched_query: query.to_string() },
+                Err(e) => {
+                    debug!("direct link resolution failed for {query}: {e:#}");
+                    return Err(BotError::NotFound);
+                }
+            }
+        } else {
+            let results = self
+                .music_manager
+                .search(streamer_id, query, 5, &config.allowed_sources)
+                .await;
+            results.into_iter().next().ok_or(BotError::NotFound)?
+        };
 
         // Explicit filter.
         if best.song.explicit && config.explicit_filter == "block" {

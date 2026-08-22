@@ -5,7 +5,6 @@ use aes_gcm::{
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use rand::RngCore;
-use uuid::Uuid;
 
 
 const NONCE_LEN: usize = 12;
@@ -16,11 +15,6 @@ pub fn generate_token(length: usize) -> String {
     let mut buf = vec![0u8; bytes_needed];
     rand::rngs::OsRng.fill_bytes(&mut buf);
     URL_SAFE_NO_PAD.encode(buf)
-}
-
-/// Generates a random UUID for public identifiers.
-pub fn generate_secure_id() -> Uuid {
-    Uuid::new_v4()
 }
 
 /// Derives a stable 32-byte AES key from a configured secret.

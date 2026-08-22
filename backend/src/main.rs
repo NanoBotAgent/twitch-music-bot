@@ -30,7 +30,7 @@ use crate::config::Settings;
 use crate::music::MusicManager;
 use crate::overlay::{cleanup_task, overlay_socket, OverlayHub};
 use crate::queue::{QueueManager, QueueNotification};
-use crate::twitch::bot::TwitchBot;
+use crate::twitch::bot::spawn_for_channel;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -215,7 +215,7 @@ async fn start_bots(
     match database::streamers::list_active_with_channels(pool).await {
         Ok(streamers) => {
             for (streamer_id, login) in streamers {
-                match TwitchBot::spawn_for_channel(
+                match spawn_for_channel(
                     streamer_id,
                     login.clone(),
                     queue_manager.clone(),

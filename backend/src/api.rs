@@ -54,6 +54,7 @@ impl<T> ApiResponse<T> {
 
 pub struct ApiState {
     pub pool: PgPool,
+    #[allow(dead_code)]
     pub settings: Arc<Settings>,
     pub music_manager: Arc<MusicManager>,
     pub queue_manager: Arc<QueueManager>,

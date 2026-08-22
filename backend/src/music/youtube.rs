@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use chrono::Utc;
 use reqwest::{Client, ClientBuilder};
 use serde::Deserialize;

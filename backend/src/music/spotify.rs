@@ -174,9 +174,8 @@ impl SpotifyClient {
 
     /// Placeholder for the AES key; the real key is injected via `with_aes_key`
     /// because it is derived from the runtime secret in `AuthState`.
-    fn aes_key_hint(&self) -> aes_gcm::Key<aes_gcm::Aes256Gcm> {
+    fn aes_key(&self) -> aes_gcm::Key<aes_gcm::Aes256Gcm> {
         self.aes_key
-            .clone()
             .expect("SpotifyClient AES key must be set via with_aes_key")
     }
 

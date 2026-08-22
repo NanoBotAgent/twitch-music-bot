@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Mutex;
@@ -19,14 +21,6 @@ struct WindowStore {
 }
 
 static STORE: Mutex<Option<WindowStore>> = Mutex::new(None);
-
-/// Client IP from the ConnectInfo extension.
-pub fn client_ip(req: &Request) -> SocketAddr {
-    req.extensions()
-        .get::<ConnectInfo<SocketAddr>>()
-        .map(|c| c.0)
-        .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 0)))
-}
 
 /// Fixed-window per-IP limiter shared by all buckets. Returns Err(response)
 /// with 429 when exhausted; handlers call this before doing work.
