@@ -208,7 +208,6 @@ fn build_cors(settings: &Settings) -> tower_http::cors::CorsLayer {
         .max_age(Duration::from_secs(3600))
 }
 
-/// Spawns chat bots for every active streamer.
 // -- Overlay static page ------------------------------------------------------
 
 const OVERLAY_INDEX_HTML: &str = include_str!("../../overlay/index.html");
@@ -217,6 +216,7 @@ async fn serve_overlay_page() -> Html<&'static str> {
     Html(OVERLAY_INDEX_HTML)
 }
 
+/// Spawns chat bots for every active streamer.
 async fn start_bots(
     pool: &sqlx::PgPool,
     queue_manager: Arc<QueueManager>,
