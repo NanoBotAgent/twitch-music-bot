@@ -12,7 +12,7 @@ use crate::metrics;
 use crate::queue::QueueManager;
 use twitch_music_shared::*;
 
-type IrcClient = TwitchIRCClient<TCPTransport<TLS>, StaticLoginCredentials>;
+pub type IrcClient = TwitchIRCClient<TCPTransport<TLS>, StaticLoginCredentials>;
 
 /// Per-channel chat bot that listens for music commands. Uses an anonymous
 /// read-only connection ("justinfan" users); it never sends chat messages,

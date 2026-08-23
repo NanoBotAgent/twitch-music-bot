@@ -120,7 +120,8 @@ async fn main() -> anyhow::Result<()> {
         .layer(cors);
 
     // -- Background bots ----------------------------------------------------------
-    let bot_handles = start_bots(&pool, queue_manager.clone(), notification_tx.clone()).await;
+    let (_bot_handles, _bot_clients) =
+        start_bots(&pool, queue_manager.clone(), notification_tx.clone()).await;
 
     // Metrics collection loop
     if settings.metrics.enabled {
@@ -209,8 +210,9 @@ async fn start_bots(
     pool: &sqlx::PgPool,
     queue_manager: Arc<QueueManager>,
     notification_tx: mpsc::Sender<QueueNotification>,
-) -> Vec<tokio::task::JoinHandle<()>> {
-    let mut handles = Vec::new();
+) -> (Vec<tokio::task::JoinHandle<()>>, Vec<crate::twitch::bot::IrcClient>) {
+    let mut handles: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    let mut clients: Vec<crate::twitch::bot::IrcClient> = Vec::new();
 
     match database::streamers::list_active_with_channels(pool).await {
         Ok(streamers) => {
@@ -221,7 +223,10 @@ async fn start_bots(
                     queue_manager.clone(),
                     notification_tx.clone(),
                 ) {
-                    Ok((_, handle)) => handles.push(handle),
+                    Ok((client, handle)) => {
+                        clients.push(client);
+                        handles.push(handle);
+                    }
                     Err(e) => error!("failed to start bot for #{login}: {e:#}"),
                 }
             }
@@ -229,6 +234,6 @@ async fn start_bots(
         Err(e) => error!("failed to list streamers for bots: {e:#}"),
     }
 
-    handles
+    (handles, clients)
 }
 
