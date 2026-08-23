@@ -28,6 +28,7 @@ const DOWNLOAD_LINK_TTL: StdDuration = StdDuration::from_secs(15 * 60);
 /// OAuth token.
 ///
 /// Joins the channel and spawns the message-processing loop.
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_for_channel(
     pool: sqlx::PgPool,
     settings: Arc<Settings>,
