@@ -9,6 +9,7 @@ on:
       - "config/production.toml"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "overlay/**"
       - "scripts/alwaysdata_deploy.py"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:

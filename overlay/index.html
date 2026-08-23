@@ -173,7 +173,7 @@
   <script type="module">
     // Configuration
     const STREAMER_ID = new URLSearchParams(window.location.search).get('streamer') || '';
-    const WS_URL = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/ws/overlay/' + STREAMER_ID;
+    const WS_URL = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/api/v1/overlay/' + STREAMER_ID + '/ws';
 
     // State
     let ws = null;

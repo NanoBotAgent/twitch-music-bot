@@ -16,6 +16,7 @@ use std::time::Duration;
 
 use axum::{
     http::{HeaderValue, Method},
+    response::Html,
     routing::get,
     Router,
 };
@@ -111,6 +112,8 @@ async fn main() -> anyhow::Result<()> {
             &format!("{}/overlay/:streamer_id/ws", api::API_PREFIX),
             get(overlay_socket),
         )
+        .route("/overlay", get(serve_overlay_page))
+        .route("/overlay/:streamer_id", get(serve_overlay_page))
         .with_state(overlay_hub.clone());
 
     let app = Router::new()
@@ -206,6 +209,14 @@ fn build_cors(settings: &Settings) -> tower_http::cors::CorsLayer {
 }
 
 /// Spawns chat bots for every active streamer.
+// -- Overlay static page ------------------------------------------------------
+
+const OVERLAY_INDEX_HTML: &str = include_str!("../../overlay/index.html");
+
+async fn serve_overlay_page() -> Html<&'static str> {
+    Html(OVERLAY_INDEX_HTML)
+}
+
 async fn start_bots(
     pool: &sqlx::PgPool,
     queue_manager: Arc<QueueManager>,
