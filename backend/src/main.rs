@@ -120,7 +120,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(cors);
 
     // -- Background bots ----------------------------------------------------------
-    let (_bot_handles, _bot_clients) =
+    let (bot_handles, _bot_clients) =
         start_bots(&pool, queue_manager.clone(), notification_tx.clone()).await;
 
     // Metrics collection loop
