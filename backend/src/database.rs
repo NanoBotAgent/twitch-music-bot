@@ -426,8 +426,8 @@ pub mod download_links {
 
         match row {
             Some(r) if r.expires_at > Utc::now() => Ok(Some(r)),
-            Some(r) => {
-                delete_by_code(pool, code).await.ok();
+            Some(expired) => {
+                delete_by_code(pool, &expired.code).await.ok();
                 Ok(None)
             }
             None => Ok(None),
