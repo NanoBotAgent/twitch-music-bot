@@ -3,7 +3,7 @@ import Link from "next/link";
 import SiteFooter from "@/components/site-footer";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Twitch Music Bot",
+  title: "Terms of Service | Twitch Music Bot",
   description: "The ground rules for using Twitch Music Bot.",
 };
 

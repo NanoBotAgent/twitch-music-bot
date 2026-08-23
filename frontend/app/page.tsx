@@ -9,7 +9,7 @@ import { getAccessToken, startTwitchLogin } from "@/lib/api";
 const FEATURES = [
   {
     title: "Requests from chat",
-    body: "Viewers queue songs with !sr — no accounts, no links to click. If they can type, they can request.",
+    body: "Viewers queue songs with !sr. No accounts, no links to click. If they can type, they can request.",
     icon: "!sr",
   },
   {
@@ -42,7 +42,7 @@ const FEATURES = [
 const STEPS = [
   {
     title: "Log in with Twitch",
-    body: "One click with your existing Twitch account — no passwords here. Your dashboard is tied to your channel.",
+    body: "One click with your existing Twitch account, no passwords here. Your dashboard is tied to your channel.",
   },
   {
     title: "Add the overlay to OBS",
@@ -57,7 +57,7 @@ const STEPS = [
 const FAQS = [
   {
     q: "Does it cost anything?",
-    a: "No. The whole service is free — you only need a Twitch account to claim your dashboard and overlay.",
+    a: "No. The whole service is free: you only need a Twitch account to claim your dashboard and overlay.",
   },
   {
     q: "Do my viewers need an account?",
@@ -97,7 +97,7 @@ export default function LandingPage() {
       const url = await startTwitchLogin();
       window.location.assign(url);
     } catch {
-      setError("Could not start login. The server may still be starting up — try again in a minute.");
+      setError("Could not start login. The server may still be starting up, try again in a minute.");
       setLoading(false);
     }
   }
@@ -141,7 +141,7 @@ export default function LandingPage() {
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-400">
               Viewers type !sr and their pick lands in a queue only you control.
-              Music plays through a browser-source overlay in OBS — no voice
+              Music plays through a browser-source overlay in OBS: no voice
               channels, no bots sitting in your chat client, nothing to install.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -161,7 +161,7 @@ export default function LandingPage() {
               <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
               <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/70" />
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/70" />
-              <span className="ml-2 text-xs text-slate-500">Channel point rewards? Nah — just chat.</span>
+              <span className="ml-2 text-xs text-slate-500">Channel point rewards? Nah, just chat.</span>
             </div>
             <div className="space-y-3 pt-4 text-sm">
               <p className="leading-relaxed">
@@ -169,7 +169,7 @@ export default function LandingPage() {
                 <span className="text-slate-200">!sr darude sandstorm</span>
               </p>
               <p className="rounded-lg bg-accent-500/10 px-3 py-2 leading-relaxed text-accent-400">
-                Queued: Darude — Sandstorm · position #3
+                Queued: Darude - Sandstorm · position #3
               </p>
               <p className="leading-relaxed">
                 <span className="font-semibold text-purple-400">luna_streams:</span>{" "}
@@ -183,7 +183,7 @@ export default function LandingPage() {
                 <span className="text-slate-200">!sr https://youtu.be/dQw4w9WgXcQ</span>
               </p>
               <p className="rounded-lg bg-accent-500/10 px-3 py-2 leading-relaxed text-accent-400">
-                Queued: Rick Astley — Never Gonna Give You Up · position #4
+                Queued: Rick Astley - Never Gonna Give You Up · position #4
               </p>
             </div>
             <div className="mt-4 flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-600">

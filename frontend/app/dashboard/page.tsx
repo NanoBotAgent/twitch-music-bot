@@ -361,7 +361,7 @@ function QueuePanel({
         ))}
         {!ordered.length && (
           <li className="py-8 text-center text-xs text-slate-600">
-            The queue is empty — chat can add songs with !sr
+            The queue is empty. Chat can add songs with !sr
           </li>
         )}
       </ul>
@@ -570,7 +570,7 @@ function ConnectionsPanel({ flash }: { flash: (m: string) => void }) {
       </div>
 
       <p className="mt-4 rounded-xl bg-slate-950/60 p-3 text-xs leading-relaxed text-slate-500">
-        SoundCloud works automatically using its public web client id — no
+        SoundCloud works automatically using its public web client id, no
         account connection needed. YouTube uses public Invidious/Piped mirrors.
       </p>
     </section>
@@ -609,7 +609,7 @@ function OnboardingCard({ flash }: { flash: (m: string) => void }) {
   function finish() {
     window.localStorage.setItem("tmb_setup_done", "1");
     setHidden(true);
-    flash("You're all set — have fun streaming!");
+    flash("You're all set . Have fun streaming!");
   }
 
   return (
@@ -629,7 +629,7 @@ function OnboardingCard({ flash }: { flash: (m: string) => void }) {
         <li className="rounded-xl bg-slate-950/50 p-4">
           <p className="font-display text-xs font-semibold text-accent-400">1. Add the overlay to OBS</p>
           <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
-            Paste your overlay link into a browser source — that page is where requested songs play.
+            Paste your overlay link into a browser source. That page is where requested songs play.
           </p>
           <div className="mt-3">
             <CopyOverlayUrl />

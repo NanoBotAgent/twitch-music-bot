@@ -3,7 +3,7 @@ import Link from "next/link";
 import SiteFooter from "@/components/site-footer";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Twitch Music Bot",
+  title: "Privacy Policy | Twitch Music Bot",
   description: "What data Twitch Music Bot stores and how it is used.",
 };
 
@@ -20,7 +20,7 @@ const SECTIONS = [
     heading: "How your data is used",
     body: [
       "Tokens are stored encrypted at rest on our server and are used only to operate your bot: joining your chat, resolving requested songs and refreshing sessions.",
-      "Your browser keeps a session token in local storage until you sign out. Nothing is shared across streamer accounts — each channel's queue, history and settings are isolated.",
+      "Your browser keeps a session token in local storage until you sign out. Nothing is shared across streamer accounts: each channel's queue, history and settings are isolated.",
     ],
   },
   {

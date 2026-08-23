@@ -120,7 +120,7 @@ export default function OverlayPage({ params }: { params: { streamerId: string }
         </div>
       ) : (
         <div className="glass inline-flex items-center gap-3 !border-slate-700/60 !bg-slate-950/70 px-5 py-3">
-          <span className="text-sm text-slate-400">No song playing — chat can request with !sr</span>
+          <span className="text-sm text-slate-400">No song playing. Chat can request with !sr</span>
           <span className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-accent-400" : "bg-slate-600"}`} />
         </div>
       )}
@@ -132,7 +132,7 @@ export default function OverlayPage({ params }: { params: { streamerId: string }
             {queue.slice(0, 3).map((item, index) => (
               <li key={item.queue_item_id} className="truncate text-sm text-slate-300">
                 <span className="mr-2 text-slate-600">{index + 1}.</span>
-                {item.title} — {item.requested_by}
+                {item.title} · {item.requested_by}
               </li>
             ))}
           </ol>

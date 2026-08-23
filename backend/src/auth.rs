@@ -108,6 +108,10 @@ fn issue_tokens(state: &AuthState, streamer_id: Uuid) -> anyhow::Result<(String,
 }
 
 fn frontend_url(settings: &Settings) -> String {
+    let fe = settings.security.frontend_url.trim().to_string();
+    if !fe.is_empty() {
+        return fe;
+    }
     settings
         .security
         .cors_allowed_origins

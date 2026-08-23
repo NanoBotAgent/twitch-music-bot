@@ -80,7 +80,8 @@ allowed_origins = ["https://your-domain.vercel.app"]
 jwt_secret = "${JWT_SECRET}"
 jwt_expiry_hours = 24
 encryption_key = "${ENCRYPTION_KEY}"
-cors_allowed_origins = ["https://your-domain.vercel.app"]
+cors_allowed_origins = ["https://your-domain.vercel.app", "https://*.vercel.app"]
+frontend_url = "https://your-domain.vercel.app"
 rate_limit_requests_per_minute = 120
 rate_limit_burst = 20
 

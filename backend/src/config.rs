@@ -109,12 +109,18 @@ pub struct SecurityConfig {
     pub refresh_token_days: i64,
     pub encryption_key: SecretString,
     pub cors_allowed_origins: Vec<String>,
+    #[serde(default = "default_frontend_url")]
+    pub frontend_url: String,
     pub rate_limit_requests_per_minute: u32,
     pub rate_limit_burst: u32,
 }
 
 fn default_refresh_token_days() -> i64 {
     30
+}
+
+fn default_frontend_url() -> String {
+    "http://localhost:3000".to_string()
 }
 
 /// Values that must be overridden before the service accepts production traffic.
@@ -306,6 +312,7 @@ impl Default for Settings {
                 refresh_token_days: default_refresh_token_days(),
                 encryption_key: SecretString::new("32-byte-encryption-key-change-me!!".into()),
                 cors_allowed_origins: vec!["http://localhost:3000".to_string(), "https://*.vercel.app".to_string()],
+                frontend_url: default_frontend_url(),
                 rate_limit_requests_per_minute: 60,
                 rate_limit_burst: 10,
             },

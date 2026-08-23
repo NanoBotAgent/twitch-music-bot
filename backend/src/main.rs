@@ -188,15 +188,7 @@ fn build_cors(settings: &Settings) -> tower_http::cors::CorsLayer {
     tower_http::cors::CorsLayer::new()
         .allow_origin(AllowOrigin::predicate(move |origin: &HeaderValue, _| {
             let origin = origin.to_str().unwrap_or("");
-            allowed.iter().any(|pattern| {
-                if pattern == "*" {
-                    true
-                } else if let Some(prefix) = pattern.strip_suffix('*') {
-                    origin.starts_with(prefix)
-                } else {
-                    origin == pattern
-                }
-            })
+            allowed.iter().any(|pattern| glob_match(pattern, origin))
         }))
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
         .allow_headers([
@@ -206,6 +198,32 @@ fn build_cors(settings: &Settings) -> tower_http::cors::CorsLayer {
         ])
         .allow_credentials(false)
         .max_age(Duration::from_secs(3600))
+}
+
+// Supports '*' anywhere in a pattern: exact, trailing wildcard and
+// mid-pattern wildcards like "https://*.vercel.app".
+fn glob_match(pattern: &str, value: &str) -> bool {
+    let parts: Vec<&str> = pattern.split('*').collect();
+    if parts.len() == 1 {
+        return pattern == value;
+    }
+
+    let mut rest = value;
+
+    let first = parts[0];
+    if !rest.starts_with(first) {
+        return false;
+    }
+    rest = &rest[first.len()..];
+
+    for mid in &parts[1..parts.len() - 1] {
+        match rest.find(mid) {
+            Some(i) => rest = &rest[i + mid.len()..],
+            None => return false,
+        }
+    }
+
+    rest.ends_with(parts[parts.len() - 1])
 }
 
 // -- Overlay static page ------------------------------------------------------

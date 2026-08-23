@@ -13,7 +13,8 @@ redirect_uri = "https://twitch-bot.alwaysdata.net/auth/twitch/callback"
 redirect_uri = "https://twitch-bot.alwaysdata.net/auth/spotify/callback"
 
 [security]
-cors_allowed_origins = ["https://twitch-music-bot-nanobotagents-projects.vercel.app", "https://twitch-bot.alwaysdata.net", "https://*.vercel.app"]
+frontend_url = "https://twitch-music-bot.vercel.app"
+cors_allowed_origins = ["https://twitch-music-bot.vercel.app", "https://twitch-music-bot-nanobotagents-projects.vercel.app", "https://twitch-bot.alwaysdata.net", "https://*.vercel.app"]
 
 [logging]
 level = "info"
