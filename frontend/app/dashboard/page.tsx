@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, startSpotifyConnect } from "@/lib/api";
 import type { BlockedUser, HistoryItem, QueuedSong, SearchResult, Song, StreamerConfig } from "@/lib/types";
 
@@ -10,12 +10,17 @@ export default function DashboardPage() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [blocked, setBlocked] = useState<BlockedUser[]>([]);
   const [config, setConfig] = useState<StreamerConfig | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ text: string; kind: "ok" | "err" } | null>(null);
 
-  const flash = useCallback((message: string) => {
-    setNotice(message);
-    setTimeout(() => setNotice(null), 3500);
+  const flash = useCallback((message: string, kind: "ok" | "err" = "ok") => {
+    setNotice({ text: message, kind });
   }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const refresh = useCallback(async () => {
     try {
@@ -51,7 +56,7 @@ export default function DashboardPage() {
       await api(`/api/v1/queue/${current.song.id}/skip`, { method: "POST" });
       await refresh();
     } catch (e) {
-      flash(errorMessage(e));
+      flash(errorMessage(e), "err");
     }
   }
 
@@ -60,7 +65,7 @@ export default function DashboardPage() {
       await api(`/api/v1/queue/${id}`, { method: "DELETE" });
       await refresh();
     } catch (e) {
-      flash(errorMessage(e));
+      flash(errorMessage(e), "err");
     }
   }
 
@@ -70,11 +75,14 @@ export default function DashboardPage() {
       flash("Queue cleared");
       await refresh();
     } catch (e) {
-      flash(errorMessage(e));
+      flash(errorMessage(e), "err");
     }
   }
 
+  const [savingConfig, setSavingConfig] = useState(false);
+
   async function saveConfig(next: StreamerConfig) {
+    setSavingConfig(true);
     try {
       const saved = await api<StreamerConfig>("/api/v1/config", {
         method: "PUT",
@@ -83,14 +91,25 @@ export default function DashboardPage() {
       setConfig(saved);
       flash("Settings saved");
     } catch (e) {
-      flash(errorMessage(e));
+      flash(errorMessage(e), "err");
+    } finally {
+      setSavingConfig(false);
     }
   }
 
   return (
     <main className="grid gap-6">
       {notice && (
-        <div className="glass border-accent-500/40 px-5 py-3 text-sm text-accent-400">{notice}</div>
+        <div
+          role="status"
+          className={`fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 mx-auto max-w-md rounded-xl border px-5 py-3 text-center text-sm shadow-xl backdrop-blur-md sm:left-auto sm:right-6 ${
+            notice.kind === "err"
+              ? "border-rose-500/40 bg-rose-950/90 text-rose-200"
+              : "border-accent-500/40 bg-slate-900/90 text-accent-300"
+          }`}
+        >
+          {notice.text}
+        </div>
       )}
 
       <OnboardingCard flash={flash} />
@@ -103,7 +122,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {config && <ConfigPanel config={config} onSave={saveConfig} />}
+        {config && <ConfigPanel config={config} onSave={saveConfig} saving={savingConfig} />}
         <ConnectionsPanel flash={flash} />
       </div>
 
@@ -172,11 +191,13 @@ function RequestPanel({
   flash,
 }: {
   onQueued: () => Promise<void>;
-  flash: (msg: string) => void;
+  flash: (msg: string, kind?: "ok" | "err") => void;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [queuingKey, setQueuingKey] = useState<string | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   async function search() {
     if (!query.trim()) return;
@@ -188,13 +209,15 @@ function RequestPanel({
       );
       setResults(data.results);
     } catch (e) {
-      flash(errorMessage(e));
+      flash(errorMessage(e), "err");
     } finally {
       setSearching(false);
     }
   }
 
   async function request(song: Song) {
+    const key = `${song.source}:${song.source_id}`;
+    setQueuingKey(key);
     try {
       await api("/api/v1/requests", {
         method: "POST",
@@ -205,7 +228,9 @@ function RequestPanel({
       setQuery("");
       await onQueued();
     } catch (e) {
-      flash(errorMessage(e));
+      flash(errorMessage(e), "err");
+    } finally {
+      setQueuingKey(null);
     }
   }
 
@@ -218,10 +243,12 @@ function RequestPanel({
         className="mt-4 flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
+          searchRef.current?.blur();
           void search();
         }}
       >
         <input
+          ref={searchRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search YouTube, Spotify or SoundCloud..."
@@ -243,8 +270,12 @@ function RequestPanel({
                 {r.song.explicit ? " · explicit" : ""}
               </p>
             </div>
-            <button onClick={() => request(r.song)} className="btn-primary shrink-0 px-3 py-1.5 text-xs">
-              Queue
+            <button
+              onClick={() => request(r.song)}
+              disabled={queuingKey !== null}
+              className="btn-primary shrink-0 px-3 py-1.5 text-xs"
+            >
+              {queuingKey === `${r.song.source}:${r.song.source_id}` ? "..." : "Queue"}
             </button>
           </li>
         ))}
@@ -282,7 +313,7 @@ function QueuePanel({
   onRemove: (id: string) => void;
   onClear: () => Promise<void>;
   onRefresh: () => Promise<void>;
-  flash: (msg: string) => void;
+  flash: (msg: string, kind?: "ok" | "err") => void;
 }) {
   const [order, setOrder] = useState<string[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -307,7 +338,7 @@ function QueuePanel({
       await onRefresh();
       flash("Queue order saved");
     } catch {
-      flash("Could not reorder the queue");
+      flash("Could not reorder the queue", "err");
     } finally {
       setSavingOrder(false);
     }
@@ -404,9 +435,11 @@ function IconBtn({
 function ConfigPanel({
   config,
   onSave,
+  saving = false,
 }: {
   config: StreamerConfig;
   onSave: (config: StreamerConfig) => void;
+  saving?: boolean;
 }) {
   const [draft, setDraft] = useState(config);
 
@@ -467,8 +500,8 @@ function ConfigPanel({
         })}
       </div>
 
-      <button onClick={() => onSave(draft)} className="btn-primary mt-6 w-full">
-        Save settings
+      <button onClick={() => onSave(draft)} disabled={saving} className="btn-primary mt-6 w-full">
+        {saving ? "Saving..." : "Save settings"}
       </button>
     </section>
   );
@@ -529,7 +562,7 @@ function Toggle({
 
 // ---------------------------------------------------------------------------
 
-function ConnectionsPanel({ flash }: { flash: (m: string) => void }) {
+function ConnectionsPanel({ flash }: { flash: (m: string, kind?: "ok" | "err") => void }) {
   const [connecting, setConnecting] = useState(false);
 
   async function connectSpotify() {
@@ -538,7 +571,7 @@ function ConnectionsPanel({ flash }: { flash: (m: string) => void }) {
       const url = await startSpotifyConnect();
       window.location.assign(url);
     } catch (e) {
-      flash(errorMessage(e));
+      flash(errorMessage(e), "err");
       setConnecting(false);
     }
   }
@@ -597,7 +630,7 @@ function CopyOverlayUrl({ label = "Copy overlay link" }: { label?: string }) {
   );
 }
 
-function OnboardingCard({ flash }: { flash: (m: string) => void }) {
+function OnboardingCard({ flash }: { flash: (m: string, kind?: "ok" | "err") => void }) {
   const [hidden, setHidden] = useState(true);
 
   useEffect(() => {
@@ -609,7 +642,7 @@ function OnboardingCard({ flash }: { flash: (m: string) => void }) {
   function finish() {
     window.localStorage.setItem("tmb_setup_done", "1");
     setHidden(true);
-    flash("You're all set . Have fun streaming!");
+    flash("You're all set. Have fun streaming!");
   }
 
   return (
@@ -698,7 +731,7 @@ function BlockedUsersPanel({
 }: {
   items: BlockedUser[];
   onChanged: () => Promise<void>;
-  flash: (m: string) => void;
+  flash: (m: string, kind?: "ok" | "err") => void;
 }) {
   const [userId, setUserId] = useState("");
   const [login, setLogin] = useState("");
@@ -713,7 +746,7 @@ function BlockedUsersPanel({
       setLogin("");
       await onChanged();
     } catch (e) {
-      flash(errorMessage(e));
+      flash(errorMessage(e), "err");
     }
   }
 
@@ -722,7 +755,7 @@ function BlockedUsersPanel({
       await api(`/api/v1/blocked-users/${encodeURIComponent(id)}`, { method: "DELETE" });
       await onChanged();
     } catch (e) {
-      flash(errorMessage(e));
+      flash(errorMessage(e), "err");
     }
   }
 
