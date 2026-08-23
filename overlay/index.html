@@ -48,6 +48,8 @@
     .status-dot.paused { background: #f59e0b; animation: none; }
     .status-dot.error { background: #ef4444; animation: none; }
 
+    #yt-player-host { position: fixed; left: 0; bottom: 0; width: 320px; height: 180px; opacity: 0; pointer-events: none; z-index: -1; }
+
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: var(--muted); }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -163,7 +165,9 @@
     </div>
 
     <!-- Audio Element -->
-    <audio id="audio-player" crossorigin="anonymous" preload="metadata"></audio>
+    <audio id="audio-player" preload="metadata"></audio>
+    <!-- Hidden YouTube embed player (audio-first playback) -->
+    <div id="yt-player-host" aria-hidden="true"></div>
   </div>
 
   <script type="module">
@@ -180,6 +184,16 @@
     let isPlaying = false;
     let progressInterval = null;
     let reconnectAttempts = 0;
+    let playbackMode = null;
+    let ytApiReady = false;
+    let ytPlayer = null;
+    let pendingAutoplay = null;
+    let embedVideoId = null;
+    let adState = null;
+    let adWatchdogTimer = null;
+    let embedLastTime = 0;
+    let embedMidAd = false;
+    let embedMidAdResumeAt = 0;
     const MAX_RECONNECT_ATTEMPTS = 10;
     const RECONNECT_DELAY = 5000;
 
@@ -227,6 +241,7 @@
       setupAudioEvents();
       setupVolumeKnob();
       setupControls();
+      setupYouTubeEmbed();
       showConnectionStatus('Connecting...', 'connecting');
     }
 
@@ -326,6 +341,237 @@
       }
     }
 
+    // ===== YouTube embed-first engine with ad suppression =====
+    const YT_AD_RELOAD_LIMIT = 2;
+    const YT_COOLDOWN_MS = 4000;
+
+    function setupYouTubeEmbed() {
+      window.onYouTubeIframeAPIReady = () => {
+        ytApiReady = true;
+        console.log('YouTube IFrame API ready');
+        if (pendingAutoplay && currentSong && currentSong.id === pendingAutoplay.song.id) {
+          const p = pendingAutoplay;
+          startEmbedPlayback(p.song, p.volume, p.start_time);
+          pendingAutoplay = null;
+        }
+      };
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+
+    function isEmbedMode() {
+      return playbackMode === 'embed' && ytPlayer && typeof ytPlayer.getPlayerState === 'function';
+    }
+
+    function safeNum(v) {
+      return (typeof v === 'number' && isFinite(v)) ? v : 0;
+    }
+
+    function applyOutputVolume(v) {
+      volume = v;
+      audio.volume = v;
+      if (isEmbedMode()) {
+        try { ytPlayer.setVolume(Math.round(v * 100)); } catch (e) {}
+      }
+    }
+
+    function setVolume(v) {
+      applyOutputVolume(v);
+      updateVolumeUI();
+    }
+
+    function startEmbedPlayback(song, vol, startSeconds) {
+      embedVideoId = song.source_id;
+      playbackMode = 'embed';
+      resetAdState(song.duration_seconds);
+      stopDirectAudio();
+
+      if (!ytPlayer) {
+        pendingAutoplay = { song, volume: vol, start_time: startSeconds };
+        ytPlayer = new YT.Player('yt-player-host', {
+          videoId: embedVideoId,
+          playerVars: {
+            autoplay: 1, controls: 0, disablekb: 1, fs: 0,
+            modestbranding: 1, playsinline: 1, rel: 0, iv_load_policy: 3
+          },
+          events: {
+            onReady: onYtReady,
+            onStateChange: onYtStateChange,
+            onError: onYtError
+          }
+        });
+      } else {
+        cueEmbed(embedVideoId, startSeconds);
+      }
+      applyOutputVolume(vol ?? 0.5);
+      startAdWatchdog();
+    }
+
+    function cueEmbed(videoId, startSeconds) {
+      const opts = { videoId };
+      if (startSeconds !== undefined && startSeconds !== null) opts.startSeconds = startSeconds;
+      ytPlayer.loadVideoById(opts);
+    }
+
+    function onYtReady() {
+      if (pendingAutoplay) {
+        const p = pendingAutoplay;
+        pendingAutoplay = null;
+        cueEmbed(p.song.source_id, p.start_time);
+        applyOutputVolume(p.volume ?? 0.5);
+      } else {
+        ytPlayer.playVideo();
+      }
+    }
+
+    function onYtStateChange(event) {
+      const S = YT.PlayerState;
+      if (event.data === S.PLAYING) {
+        isPlaying = true;
+        elements.statusDot.classList.remove('paused');
+        updatePlayPauseButton();
+        if (adState && adState.silenced && !adDetectedNow()) {
+          restoreSound();
+        }
+      } else if (event.data === S.BUFFERING) {
+        elements.statusDot.classList.add('paused');
+      } else if (event.data === S.ENDED) {
+        stopAdWatchdog();
+        onSongEnded();
+      } else if (event.data === S.PAUSED) {
+        isPlaying = false;
+        updatePlayPauseButton();
+      }
+    }
+
+    function adDetectedNow() {
+      if (!isEmbedMode() || !adState) return false;
+      const dur = safeNum(ytPlayer.getDuration());
+      return adState.expected > 30 && dur > 0 && Math.abs(dur - adState.expected) > 5;
+    }
+
+    function onYtError(event) {
+      console.warn('YT embed error code:', event.data, '- falling back to direct stream');
+      if (currentSong && currentSong.stream_url && fallbackToDirect(currentSong, 'yt-error-' + event.data)) {
+        return;
+      }
+      playbackMode = null;
+      showConnectionStatus('Unplayable video', 'error');
+    }
+
+    function fallbackToDirect(song, reason) {
+      if (!song || !song.stream_url) return false;
+      stopAdWatchdog();
+      stopDirectAudio();
+      startDirectPlayback(song, volume, null, reason);
+      return true;
+    }
+
+    function stopDirectAudio() {
+      try { audio.pause(); } catch (e) {}
+      if (audio.src) { audio.removeAttribute('src'); audio.load(); }
+    }
+
+    function resetAdState(expectedDur) {
+      adState = {
+        expected: expectedDur || 0,
+        adReloads: 0,
+        silenced: false,
+        gaveUpSwitch: false,
+        cooldownUntil: 0
+      };
+      embedLastTime = 0;
+      embedMidAd = false;
+      embedMidAdResumeAt = 0;
+    }
+
+    function startAdWatchdog() {
+      stopAdWatchdog();
+      adWatchdogTimer = setInterval(embedTick, 500);
+    }
+
+    function stopAdWatchdog() {
+      if (adWatchdogTimer) {
+        clearInterval(adWatchdogTimer);
+        adWatchdogTimer = null;
+      }
+      restoreSound();
+    }
+
+    function embedTick() {
+      if (!isEmbedMode()) return;
+      let state;
+      try { state = ytPlayer.getPlayerState(); } catch (e) { return; }
+      if (state !== 1) return;
+
+      const dur = safeNum(ytPlayer.getDuration());
+      const t = safeNum(ytPlayer.getCurrentTime());
+
+      if (dur > 0) {
+        const pct = Math.min(100, Math.max(0, (t / dur) * 100));
+        elements.progressBar.style.transform = 'scaleX(' + pct / 100 + ')';
+        elements.currentTime.textContent = formatTime(t);
+        elements.totalTime.textContent = formatTime(dur);
+      }
+
+      // Pre/post-roll ads report a different duration than the requested track
+      if (adDetectedNow()) {
+        handleWholeAd();
+      } else if (Date.now() >= (adState ? adState.cooldownUntil : 0)) {
+        // Mid-roll ads rewind currentTime below where content left off
+        if (t < embedLastTime - 2) {
+          embedMidAd = true;
+          embedMidAdResumeAt = embedLastTime;
+          silenceForAd('midroll');
+        }
+        if (embedMidAd && t >= embedMidAdResumeAt - 0.5) {
+          embedMidAd = false;
+          restoreSound();
+        }
+      }
+
+      embedLastTime = t;
+    }
+
+    function handleWholeAd() {
+      const now = Date.now();
+      if (now < adState.cooldownUntil) return;
+      adState.cooldownUntil = now + YT_COOLDOWN_MS;
+
+      if (adState.adReloads < YT_AD_RELOAD_LIMIT) {
+        adState.adReloads++;
+        console.warn('Ad detected in embed, silencing + reloading (attempt', adState.adReloads + ')');
+        silenceForAd('preroll');
+        try { ytPlayer.loadVideoById({ videoId: embedVideoId }); } catch (e) {}
+      } else if (!adState.gaveUpSwitch) {
+        // Ads keep coming -> switch to the extracted direct stream (ad-free)
+        adState.gaveUpSwitch = true;
+        console.warn('Ads persist after reloads, switching to direct stream');
+        if (!fallbackToDirect(currentSong, 'ads-persist')) {
+          restoreSound();
+        }
+      } else {
+        restoreSound();
+      }
+    }
+
+    function silenceForAd(kind) {
+      if (!adState || adState.silenced) return;
+      adState.silenced = true;
+      try { ytPlayer.mute(); } catch (e) {}
+      console.log('Audio muted for', kind);
+    }
+
+    function restoreSound() {
+      if (!adState || !adState.silenced || !ytPlayer) return;
+      adState.silenced = false;
+      try {
+        ytPlayer.unMute();
+        ytPlayer.setVolume(Math.round(volume * 100));
+      } catch (e) {}
+    }
+
     // Audio Handling
     function setupAudioEvents() {
       audio.addEventListener('loadedmetadata', () => {
@@ -363,39 +609,59 @@
       updateVolumeUI();
 
       // Set source
-      if (song.stream_url) {
-        audio.src = song.stream_url;
-      } else {
-        console.error('No stream URL for song:', song);
-        return;
-      }
-
-      // Update UI
       updateNowPlayingUI(song);
 
-      // Play
-      if (start_time !== undefined) {
-        audio.currentTime = start_time;
+      const embedEligible = song.source === 'youtube' && !!song.source_id;
+      if (embedEligible && ytApiReady) {
+        startEmbedPlayback(song, volume, start_time);
+      } else if (embedEligible) {
+        pendingAutoplay = { song, volume, start_time };
+      } else if (song.stream_url) {
+        startDirectPlayback(song, volume, start_time, 'non-youtube-source');
+      } else {
+        console.error('No stream URL for song:', song);
+        showConnectionStatus('No playable source', 'error');
+      }
+    }
+
+    function startDirectPlayback(song, vol, startSeconds, reason) {
+      console.log('Using direct stream (' + reason + '):', song.title);
+      playbackMode = 'direct';
+      stopAdWatchdog();
+      audio.src = song.stream_url;
+      audio.volume = vol ?? 0.5;
+      if (startSeconds !== undefined && startSeconds !== null) {
+        audio.currentTime = startSeconds;
       }
       audio.play().catch(err => {
-        console.error('Play failed:', err);
+        console.error('Direct play failed:', err);
         showConnectionStatus('Playback failed', 'error');
       });
     }
 
     function pauseAudio() {
-      audio.pause();
+      if (isEmbedMode()) {
+        ytPlayer.pauseVideo();
+      } else {
+        audio.pause();
+      }
       isPlaying = false;
       updatePlayPauseButton();
     }
 
     function resumeAudio() {
-      audio.play().catch(err => console.error('Resume failed:', err));
+      if (isEmbedMode()) {
+        ytPlayer.playVideo();
+      } else {
+        audio.play().catch(err => console.error('Resume failed:', err));
+      }
       isPlaying = true;
       updatePlayPauseButton();
     }
 
     function stopAudio() {
+      if (isEmbedMode()) { try { ytPlayer.stopVideo(); } catch (e) {} }
+      stopAdWatchdog();
       audio.pause();
       audio.src = '';
       audio.load();
@@ -408,6 +674,8 @@
 
     function skipSong() {
       // Server handles skip, we just stop current
+      if (isEmbedMode()) { try { ytPlayer.stopVideo(); } catch (e) {} }
+      stopAdWatchdog();
       audio.pause();
       audio.src = '';
       audio.load();
@@ -473,7 +741,7 @@
         const angle = getAngle(e);
         const diff = angle - startAngle;
         volume = Math.max(0, Math.min(1, startVolume + diff * 2));
-        audio.volume = volume;
+        applyOutputVolume(volume);
         updateVolumeUI();
         rotateKnob(volume);
       });
@@ -499,7 +767,7 @@
         const angle = getAngle(e);
         const diff = angle - startAngle;
         volume = Math.max(0, Math.min(1, startVolume + diff * 2));
-        audio.volume = volume;
+        applyOutputVolume(volume);
         updateVolumeUI();
         rotateKnob(volume);
       }, { passive: true });
@@ -558,12 +826,17 @@
     // Controls
     function setupControls() {
       elements.btnPlayPause.addEventListener('click', () => {
-        if (audio.paused) {
+        if (isEmbedMode()) {
+          const st = ytPlayer.getPlayerState();
+          if (st === 1) { ytPlayer.pauseVideo(); isPlaying = false; }
+          else { ytPlayer.playVideo(); isPlaying = true; }
+        } else if (audio.paused) {
           audio.play().catch(err => console.error('Play failed:', err));
+          isPlaying = true;
         } else {
           audio.pause();
+          isPlaying = false;
         }
-        isPlaying = !audio.paused;
         updatePlayPauseButton();
       });
 
@@ -575,7 +848,8 @@
     }
 
     function updatePlayPauseButton() {
-      if (audio.paused) {
+      const paused = isEmbedMode() ? ytPlayer.getPlayerState() !== 1 : audio.paused;
+      if (paused) {
         elements.playIcon.classList.remove('hidden');
         elements.pauseIcon.classList.add('hidden');
       } else {
