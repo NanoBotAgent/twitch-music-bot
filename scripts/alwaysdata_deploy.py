@@ -73,7 +73,7 @@ service_payload = {
     "working_directory": "app",
     "command": "sh -c 'chmod +x ./twitch-music-bot && exec ./twitch-music-bot'",
     "environment": env_string,
-    "check_health_command": f"curl -fsS http://127.0.0.1:{PORT}/health",
+    "check_health_command": f"curl -fsS http://localhost:{PORT}/health || curl -fsS http://ip6-localhost:{PORT}/health",
 }
 
 st, ssh_users = call("/ssh/")
