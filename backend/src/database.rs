@@ -297,6 +297,7 @@ pub mod oauth {
                 "soundcloud_expires_at",
                 "soundcloud_scope",
             ),
+            "twitch" => ("twitch_access_token", "twitch_refresh_token", "twitch_expires_at", "twitch_scope"),
             other => anyhow::bail!("unknown provider: {other}"),
         };
 
@@ -329,6 +330,7 @@ pub mod oauth {
                 "soundcloud_expires_at",
                 "soundcloud_scope",
             ),
+            "twitch" => ("twitch_access_token", "twitch_refresh_token", "twitch_expires_at", "twitch_scope"),
             other => anyhow::bail!("unknown provider: {other}"),
         };
 
@@ -352,6 +354,100 @@ pub mod oauth {
 
     pub async fn spotify(pool: &PgPool, streamer_id: Uuid) -> anyhow::Result<Option<ProviderTokens>> {
         select_provider(pool, streamer_id, "spotify").await
+    }
+
+    pub async fn twitch(pool: &PgPool, streamer_id: Uuid) -> anyhow::Result<Option<ProviderTokens>> {
+        select_provider(pool, streamer_id, "twitch").await
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Download links (!downloadlink)
+// ---------------------------------------------------------------------------
+
+pub mod download_links {
+    use super::*;
+
+    /// Row shape returned by lookups.
+    #[derive(Debug, sqlx::FromRow)]
+    pub struct DownloadLinkRow {
+        pub code: String,
+        pub song_id: Uuid,
+        pub created_at: DateTime<Utc>,
+        pub expires_at: DateTime<Utc>,
+    }
+
+    pub async fn create(
+        pool: &PgPool,
+        streamer_id: Uuid,
+        song_id: Uuid,
+        code: &str,
+        expires_at: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            "INSERT INTO download_links (streamer_id, song_id, code, expires_at) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(streamer_id)
+        .bind(song_id)
+        .bind(code)
+        .bind(expires_at)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Most recent link generated for this song since `since` (daily gate).
+    pub async fn latest_since(
+        pool: &PgPool,
+        streamer_id: Uuid,
+        song_id: Uuid,
+        since: DateTime<Utc>,
+    ) -> anyhow::Result<Option<DownloadLinkRow>> {
+        Ok(sqlx::query_as::<_, DownloadLinkRow>(
+            "SELECT code, song_id, created_at, expires_at FROM download_links \
+             WHERE streamer_id = $1 AND song_id = $2 AND created_at >= $3 \
+             ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(streamer_id)
+        .bind(song_id)
+        .bind(since)
+        .fetch_optional(pool)
+        .await?)
+    }
+
+    /// Active (non-expired) link by code.
+    pub async fn find_active(pool: &PgPool, code: &str) -> anyhow::Result<Option<DownloadLinkRow>> {
+        let row = sqlx::query_as::<_, DownloadLinkRow>(
+            "SELECT code, song_id, created_at, expires_at FROM download_links WHERE code = $1",
+        )
+        .bind(code)
+        .fetch_optional(pool)
+        .await?;
+
+        match row {
+            Some(r) if r.expires_at > Utc::now() => Ok(Some(r)),
+            Some(r) => {
+                delete_by_code(pool, code).await.ok();
+                Ok(None)
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub async fn delete_by_code(pool: &PgPool, code: &str) -> anyhow::Result<()> {
+        sqlx::query("DELETE FROM download_links WHERE code = $1")
+            .bind(code)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Background sweep: remove expired rows.
+    pub async fn delete_expired(pool: &PgPool) -> anyhow::Result<u64> {
+        let res = sqlx::query("DELETE FROM download_links WHERE expires_at <= NOW()")
+            .execute(pool)
+            .await?;
+        Ok(res.rows_affected())
     }
 }
 

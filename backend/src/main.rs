@@ -98,7 +98,26 @@ async fn main() -> anyhow::Result<()> {
         settings: settings.clone(),
         music_manager,
         queue_manager: queue_manager.clone(),
+        http: reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()?,
     });
+
+    // -- Download link cleanup -----------------------------------------------
+    {
+        let dl_pool = pool.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                match database::download_links::delete_expired(&dl_pool).await {
+                    Ok(n) if n > 0 => info!("deleted {n} expired download links"),
+                    Ok(_) => {}
+                    Err(e) => warn!("download link cleanup failed: {e:#}"),
+                }
+            }
+        });
+    }
 
     let overlay_hub = Arc::new(OverlayHub { pool: pool.clone(), tx: overlay_tx });
 
@@ -124,7 +143,14 @@ async fn main() -> anyhow::Result<()> {
 
     // -- Background bots ----------------------------------------------------------
     let (bot_handles, _bot_clients) =
-        start_bots(&pool, queue_manager.clone(), notification_tx.clone()).await;
+        start_bots(
+            &pool,
+            settings.clone(),
+            aes_key,
+            queue_manager.clone(),
+            notification_tx.clone(),
+        )
+        .await;
 
     // Metrics collection loop
     if settings.metrics.enabled {
@@ -272,9 +298,16 @@ async fn serve_overlay_page() -> Html<&'static str> {
 /// Spawns chat bots for every active streamer.
 async fn start_bots(
     pool: &sqlx::PgPool,
+    settings: std::sync::Arc<Settings>,
+    aes_key: utils::crypto::AesKey,
     queue_manager: Arc<QueueManager>,
     notification_tx: mpsc::Sender<QueueNotification>,
 ) -> (Vec<tokio::task::JoinHandle<()>>, Vec<crate::twitch::bot::IrcClient>) {
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .expect("http client");
+
     let mut handles: Vec<tokio::task::JoinHandle<()>> = Vec::new();
     let mut clients: Vec<crate::twitch::bot::IrcClient> = Vec::new();
 
@@ -282,6 +315,10 @@ async fn start_bots(
         Ok(streamers) => {
             for (streamer_id, login) in streamers {
                 match spawn_for_channel(
+                    pool.clone(),
+                    settings.clone(),
+                    http.clone(),
+                    aes_key,
                     streamer_id,
                     login.clone(),
                     queue_manager.clone(),

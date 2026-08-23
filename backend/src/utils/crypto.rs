@@ -6,6 +6,8 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use rand::RngCore;
 
+/// AES-256-GCM key used for encrypting stored OAuth tokens.
+pub type AesKey = Key<Aes256Gcm>;
 
 const NONCE_LEN: usize = 12;
 

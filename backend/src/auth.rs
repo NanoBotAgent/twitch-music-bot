@@ -107,7 +107,7 @@ fn issue_tokens(state: &AuthState, streamer_id: Uuid) -> anyhow::Result<(String,
     Ok((access, refresh))
 }
 
-fn frontend_url(settings: &Settings) -> String {
+pub(crate) fn frontend_url(settings: &Settings) -> String {
     let fe = settings.security.frontend_url.trim().to_string();
     if !fe.is_empty() {
         return fe;
@@ -255,6 +255,10 @@ async fn twitch_callback(
     #[derive(Deserialize)]
     struct TwitchToken {
         access_token: String,
+        #[serde(default)]
+        refresh_token: Option<String>,
+        #[serde(default)]
+        expires_in: Option<i64>,
     }
 
     let token: TwitchToken = match token_resp.json().await {
@@ -315,6 +319,37 @@ async fn twitch_callback(
             return redirect_with_error(&state, "persist_failed");
         }
     };
+
+    // Persist the streamer's Twitch OAuth tokens (encrypted) so the chat bot
+    // can reply in-channel via Helix.
+    {
+        let enc_access = match crypto::encrypt(&state.aes_key, &token.access_token) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("Twitch token encryption failed: {e:#}");
+                return redirect_with_error(&state, "internal_error");
+            }
+        };
+        let enc_refresh = token.refresh_token.as_deref().and_then(|rt| crypto::encrypt(&state.aes_key, rt).ok());
+        let expires_at = token
+            .expires_in
+            .filter(|s| *s > 0)
+            .map(|s| Utc::now() + Duration::seconds(s));
+        let scope: Vec<String> = state.settings.twitch.scopes.clone();
+        if let Err(e) = crate::database::oauth::upsert_provider(
+            &state.pool,
+            streamer.id,
+            "twitch",
+            Some(enc_access.as_bytes()),
+            enc_refresh.as_deref().map(str::as_bytes),
+            expires_at,
+            &scope,
+        )
+        .await
+        {
+            warn!("Failed to persist Twitch tokens: {e:#}");
+        }
+    }
 
     let (access, refresh) = match issue_tokens(&state, streamer.id) {
         Ok(t) => t,

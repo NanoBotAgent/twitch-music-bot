@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use axum::{
+    body::Body,
     extract::{ConnectInfo, Path, Query as AxumQuery, Request, State},
-    http::StatusCode,
+    http::{header, HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, post, put},
@@ -12,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use sqlx::PgPool;
 use tracing::{error, warn};
+use urlencoding::encode as urlencode;
 use uuid::Uuid;
 
 use twitch_music_shared::SearchResult;
@@ -61,6 +63,7 @@ pub struct ApiState {
     pub settings: Arc<Settings>,
     pub music_manager: Arc<MusicManager>,
     pub queue_manager: Arc<QueueManager>,
+    pub http: reqwest::Client,
 }
 
 fn internal_error(context: &str, e: anyhow::Error) -> Response {
@@ -527,6 +530,223 @@ async fn overlay_current(
 }
 
 // ---------------------------------------------------------------------------
+// Public (unauthenticated) endpoints
+// ---------------------------------------------------------------------------
+
+/// View-only queue for chat viewers: sanitized now-playing + pending items.
+async fn public_queue(
+    State(state): State<Arc<ApiState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    Path(streamer_id): Path<Uuid>,
+) -> Response {
+    if let Err(resp) = check_rate_limit(addr, "public_queue", 60, 60) {
+        return resp;
+    }
+
+    let active = match database::streamers::get(&state.pool, streamer_id).await {
+        Ok(Some(s)) => s.is_active,
+        Ok(None) => false,
+        Err(e) => return internal_error("public queue lookup", e),
+    };
+    if !active {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse::<()>::err("NOT_FOUND", "Unknown stream")),
+        )
+            .into_response();
+    }
+
+    let current = state.queue_manager.get_current_song(streamer_id).await;
+    let items = match state.queue_manager.get_queue(streamer_id).await {
+        Ok(i) => i,
+        Err(e) => return internal_error("public queue fetch", e),
+    };
+
+    let current_json = current.as_ref().map(|q| {
+        json!({
+            "title": q.song.title,
+            "artist": q.song.artist,
+            "duration_seconds": q.song.duration_seconds,
+            "thumbnail_url": q.song.thumbnail_url,
+            "requested_by": q.requester_name,
+        })
+    });
+
+    let queue_json: Vec<_> = items
+        .iter()
+        .map(|q| {
+            json!({
+                "position": q.position,
+                "title": q.song.title,
+                "artist": q.song.artist,
+                "duration_seconds": q.song.duration_seconds,
+                "thumbnail_url": q.song.thumbnail_url,
+                "requested_by": q.requester_name,
+                "votes": q.votes,
+            })
+        })
+        .collect();
+
+    Json(ApiResponse::ok(json!({
+        "current": current_json,
+        "items": queue_json,
+    })))
+    .into_response()
+}
+
+/// Metadata for the /dl landing page.
+async fn download_meta(
+    State(state): State<Arc<ApiState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    Path(code): Path<String>,
+) -> Response {
+    if let Err(resp) = check_rate_limit(addr, "download_meta", 30, 60) {
+        return resp;
+    }
+
+    let link = match database::download_links::find_active(&state.pool, &code).await {
+        Ok(Some(l)) => l,
+        Ok(None) | Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::<()>::err("EXPIRED", "Download link not found or expired")),
+            )
+                .into_response()
+        }
+    };
+
+    let song = match database::songs::get_by_id(&state.pool, link.song_id).await {
+        Ok(Some(s)) => s,
+        _ => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::<()>::err("NOT_FOUND", "Song no longer exists")),
+            )
+                .into_response()
+        }
+    };
+
+    Json(ApiResponse::ok(json!({
+        "title": song.title,
+        "artist": song.artist,
+        "thumbnail_url": song.thumbnail_url,
+        "expires_at": link.expires_at.to_rfc3339(),
+    })))
+    .into_response()
+}
+
+fn sanitize_filename_part(part: &str) -> String {
+    let cleaned: String = part
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == ' ' || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                ' '
+            }
+        })
+        .collect();
+    cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Streams the current media file for a valid download-link code as an
+/// attachment. The upstream URL is resolved on demand (cobalt/mirrors).
+async fn download_proxy(
+    State(state): State<Arc<ApiState>>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    Path(code): Path<String>,
+) -> Response {
+    if let Err(resp) = check_rate_limit(addr, "download_proxy", 10, 60) {
+        return resp;
+    }
+
+    let link = match database::download_links::find_active(&state.pool, &code).await {
+        Ok(Some(l)) => l,
+        Ok(None) | Err(_) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::<()>::err("EXPIRED", "Download link not found or expired")),
+            )
+                .into_response()
+        }
+    };
+
+    let mut song = match database::songs::get_by_id(&state.pool, link.song_id).await {
+        Ok(Some(s)) => s,
+        _ => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::<()>::err("NOT_FOUND", "Song no longer exists")),
+            )
+                .into_response()
+        }
+    };
+
+    let stream_url = match state
+        .music_manager
+        .get_stream_url(link.streamer_id, &mut song)
+        .await
+    {
+        Ok(u) => u,
+        Err(e) => {
+            return internal_error("download stream resolution", e);
+        }
+    };
+
+    let upstream = match state.http.get(&stream_url).send().await {
+        Ok(r) if r.status().is_success() => r,
+        Ok(r) => {
+            return internal_error(
+                "download upstream",
+                anyhow::anyhow!("upstream returned {}", r.status()),
+            );
+        }
+        Err(e) => return internal_error("download upstream", e.into()),
+    };
+
+    let content_type = upstream
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("audio/mpeg")
+        .to_string();
+
+    let ext = match content_type.as_str() {
+        ct if ct.contains("mpeg") => "mp3",
+        ct if ct.contains("mp4") || ct.contains("aac") || ct.contains("m4a") => "m4a",
+        ct if ct.contains("ogg") => "ogg",
+        ct if ct.contains("wav") => "wav",
+        _ => "mp3",
+    };
+
+    let filename = format!(
+        "{} - {}.{}",
+        sanitize_filename_part(&song.artist),
+        sanitize_filename_part(&song.title),
+        ext
+    );
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        content_type.parse().unwrap_or(header::HeaderValue::from_static("audio/mpeg")),
+    );
+    if let Ok(v) = header::HeaderValue::from_str(&format!(
+        "attachment; filename*=UTF-8''{}",
+        urlencode(&filename)
+    )) {
+        headers.insert(header::CONTENT_DISPOSITION, v);
+    }
+
+    (
+        StatusCode::OK,
+        headers,
+        Body::from_stream(upstream.bytes_stream()),
+    )
+        .into_response()
+}
+
+// ---------------------------------------------------------------------------
 // Router assembly
 // ---------------------------------------------------------------------------
 
@@ -562,6 +782,13 @@ pub fn create_api_router(
 
     Router::new()
         .nest(API_PREFIX, protected)
+        .nest(
+            "/api/v1/public",
+            Router::new()
+                .route("/streamers/:streamer_id/queue", get(public_queue))
+                .route("/download/:code", get(download_proxy))
+                .route("/download/:code/meta", get(download_meta)),
+        )
         .route("/health", get(health_check))
         .route("/api/v1/overlay/:streamer_id/current", get(overlay_current))
         .with_state(api_state)
