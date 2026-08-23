@@ -39,7 +39,7 @@ export default function AuthCallbackPage() {
   if (error) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
-        <div className="glass w-full max-w-md p-10 text-center">
+        <div className="glass w-full max-w-md p-6 text-center sm:p-10">
           <h1 className="font-display text-xl font-bold text-white">Login failed</h1>
           <p className="mt-3 text-sm text-slate-400">{error}</p>
           <button onClick={() => router.replace("/")} className="btn-primary mt-8">

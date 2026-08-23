@@ -6,6 +6,14 @@
   color-scheme: dark;
 }
 
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 body {
   @apply bg-surface text-slate-200 font-body antialiased;
   background-image:
@@ -27,5 +35,6 @@ body {
 }
 
 .input {
-  @apply w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-accent-500/70 focus:ring-2 focus:ring-accent-500/20;
+  /* text-base on phones keeps iOS Safari from zooming in on focus */
+  @apply w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2.5 text-base text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-accent-500/70 focus:ring-2 focus:ring-accent-500/20 sm:text-sm;
 }

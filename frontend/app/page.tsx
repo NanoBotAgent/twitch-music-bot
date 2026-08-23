@@ -123,7 +123,7 @@ export default function LandingPage() {
             <a href="#commands" className="transition hover:text-white">Commands</a>
             <a href="#faq" className="transition hover:text-white">FAQ</a>
           </nav>
-          <button onClick={login} disabled={loading} className="btn-primary px-4 py-2 text-sm">
+          <button onClick={login} disabled={loading} className="btn-primary px-5 py-2.5 text-sm">
             Log in
           </button>
         </div>
@@ -131,7 +131,7 @@ export default function LandingPage() {
 
       <main id="top">
         {/* Hero */}
-        <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-20 lg:grid-cols-2 lg:pt-28">
+        <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 sm:pt-20 lg:grid-cols-2 lg:pt-28">
           <div>
             <p className="inline-flex rounded-full border border-accent-500/30 bg-accent-500/10 px-3 py-1 text-xs font-medium text-accent-400">
               Free · Open source · One account per channel
@@ -145,10 +145,10 @@ export default function LandingPage() {
               channels, no bots sitting in your chat client, nothing to install.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <button onClick={login} disabled={loading} className="btn-primary px-6 py-3 text-base">
+              <button onClick={login} disabled={loading} className="btn-primary w-full justify-center px-6 py-3 text-base sm:w-auto">
                 {loading ? "Redirecting..." : "Log in with Twitch"}
               </button>
-              <a href="#how" className="btn-ghost px-5 py-3 text-sm">
+              <a href="#how" className="btn-ghost w-full justify-center px-5 py-3 text-sm sm:w-auto">
                 See how it works
               </a>
             </div>
@@ -180,7 +180,7 @@ export default function LandingPage() {
               </p>
               <p className="leading-relaxed">
                 <span className="font-semibold text-rose-400">dj_waffles:</span>{" "}
-                <span className="text-slate-200">!sr https://youtu.be/dQw4w9WgXcQ</span>
+                <span className="break-all text-slate-200">!sr https://youtu.be/dQw4w9WgXcQ</span>
               </p>
               <p className="rounded-lg bg-accent-500/10 px-3 py-2 leading-relaxed text-accent-400">
                 Queued: Rick Astley - Never Gonna Give You Up · position #4
@@ -261,7 +261,7 @@ export default function LandingPage() {
 
         {/* Final CTA */}
         <section className="mx-auto max-w-6xl px-4 pb-24 pt-8">
-          <div className="glass relative overflow-hidden p-10 text-center">
+          <div className="glass relative overflow-hidden p-6 text-center sm:p-10">
             <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-48 w-96 rounded-full bg-accent-500/15 blur-[80px]" />
             <h2 className="relative font-display text-2xl font-bold text-white sm:text-3xl">Ready to let chat pick the music?</h2>
             <p className="relative mt-3 text-sm text-slate-400">Free forever for any channel. Your queue stays yours.</p>

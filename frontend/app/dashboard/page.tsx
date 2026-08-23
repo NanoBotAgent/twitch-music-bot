@@ -131,7 +131,7 @@ function NowPlaying({
   onSkip: () => void;
 }) {
   return (
-    <section className="glass flex items-center gap-5 p-6">
+    <section className="glass flex items-center gap-4 p-4 sm:gap-5 sm:p-6">
       <Thumbnail song={song} />
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Now playing</p>
@@ -157,7 +157,7 @@ function NowPlaying({
 }
 
 function Thumbnail({ song, small }: { song: Song | null; small?: boolean }) {
-  const size = small ? "h-10 w-10 rounded-lg" : "h-20 w-20 rounded-xl";
+  const size = small ? "h-10 w-10 rounded-lg" : "h-14 w-14 rounded-xl sm:h-20 sm:w-20";
   if (song?.thumbnail_url) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={song.thumbnail_url} alt="" className={`${size} shrink-0 object-cover`} />;
@@ -210,7 +210,7 @@ function RequestPanel({
   }
 
   return (
-    <section className="glass p-6">
+    <section className="glass p-4 sm:p-6">
       <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
         Add a song
       </h3>
@@ -328,7 +328,7 @@ function QueuePanel({
   const dirty = order.join(",") !== queue.map((q) => q.queue_item_id).join(",");
 
   return (
-    <section className="glass p-6">
+    <section className="glass p-4 sm:p-6">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
           Queue ({queue.length})
@@ -392,7 +392,7 @@ function IconBtn({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="rounded-lg border border-slate-800 px-2 py-1 text-xs text-slate-400 transition hover:border-slate-600 hover:text-white disabled:opacity-30"
+      className="grid h-9 w-9 place-items-center rounded-lg border border-slate-800 text-sm text-slate-400 transition hover:border-slate-600 hover:text-white disabled:opacity-30"
     >
       {children}
     </button>
@@ -415,7 +415,7 @@ function ConfigPanel({
   }
 
   return (
-    <section className="glass p-6">
+    <section className="glass p-4 sm:p-6">
       <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
         Request settings
       </h3>
@@ -544,7 +544,7 @@ function ConnectionsPanel({ flash }: { flash: (m: string) => void }) {
   }
 
   return (
-    <section className="glass p-6">
+    <section className="glass p-4 sm:p-6">
       <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
         Connections
       </h3>
@@ -613,7 +613,7 @@ function OnboardingCard({ flash }: { flash: (m: string) => void }) {
   }
 
   return (
-    <section className="glass p-6">
+    <section className="glass p-4 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-accent-400">
@@ -668,7 +668,7 @@ function getStreamerIdFromToken(): string | null {
 
 function HistoryPanel({ items }: { items: HistoryItem[] }) {
   return (
-    <section className="glass p-6">
+    <section className="glass p-4 sm:p-6">
       <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
         Recently played
       </h3>
@@ -727,13 +727,13 @@ function BlockedUsersPanel({
   }
 
   return (
-    <section className="glass p-6">
+    <section className="glass p-4 sm:p-6">
       <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
         Blocked users ({items.length})
       </h3>
 
       <form
-        className="mt-4 flex gap-2"
+        className="mt-4 flex flex-col gap-2 sm:flex-row"
         onSubmit={(e) => {
           e.preventDefault();
           void block();
