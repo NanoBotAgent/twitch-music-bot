@@ -368,9 +368,9 @@ pub mod oauth {
 pub mod download_links {
     use super::*;
 
-    /// Row shape returned by lookups.
     #[derive(Debug, sqlx::FromRow)]
     pub struct DownloadLinkRow {
+        pub streamer_id: Uuid,
         pub code: String,
         pub song_id: Uuid,
         pub created_at: DateTime<Utc>,
@@ -404,7 +404,7 @@ pub mod download_links {
         since: DateTime<Utc>,
     ) -> anyhow::Result<Option<DownloadLinkRow>> {
         Ok(sqlx::query_as::<_, DownloadLinkRow>(
-            "SELECT code, song_id, created_at, expires_at FROM download_links \
+            "SELECT streamer_id, code, song_id, created_at, expires_at FROM download_links \
              WHERE streamer_id = $1 AND song_id = $2 AND created_at >= $3 \
              ORDER BY created_at DESC LIMIT 1",
         )
@@ -418,7 +418,7 @@ pub mod download_links {
     /// Active (non-expired) link by code.
     pub async fn find_active(pool: &PgPool, code: &str) -> anyhow::Result<Option<DownloadLinkRow>> {
         let row = sqlx::query_as::<_, DownloadLinkRow>(
-            "SELECT code, song_id, created_at, expires_at FROM download_links WHERE code = $1",
+            "SELECT streamer_id, code, song_id, created_at, expires_at FROM download_links WHERE code = $1",
         )
         .bind(code)
         .fetch_optional(pool)

@@ -156,7 +156,7 @@ export default function PublicQueuePage() {
                         {item.requested_by ? ` · ${item.requested_by}` : ""}
                       </p>
                     </div>
-                    {item.votes > 0 && (
+                    {(item.votes ?? 0) > 0 && (
                       <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-400">
                         +{item.votes}
                       </span>
