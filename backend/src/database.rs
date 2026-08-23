@@ -509,7 +509,7 @@ impl QueueRow {
 pub mod queue {
     use super::*;
 
-    const JOIN_SELECT: &str = "SELECT q.id, q.streamer_id, q.song_id, s.source, s.source_id, s.title, s.artist, s.duration_seconds, \
+    const JOIN_SELECT: &str = "SELECT q.id AS queue_item_id, q.streamer_id, q.song_id, s.source, s.source_id, s.title, s.artist, s.duration_seconds, \
         s.thumbnail_url, s.stream_url, s.explicit, s.metadata, \
         q.requested_by_user_id, q.requested_by_display_name, q.requested_by_is_mod, q.requested_by_is_sub, \
         q.requested_by_is_vip, q.status, q.position, \
