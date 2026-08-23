@@ -20,8 +20,10 @@ pub struct YouTubeClient {
     api_key: String,
     invidious_instances: Vec<String>,
     piped_instances: Vec<String>,
+    cobalt_instances: Vec<String>,
     current_invidious: std::sync::atomic::AtomicUsize,
     current_piped: std::sync::atomic::AtomicUsize,
+    current_cobalt: std::sync::atomic::AtomicUsize,
     request_timeout: Duration,
     max_retries: u32,
     fallback_to_ytdlp: bool,
@@ -110,6 +112,12 @@ struct PipedAudioStream {
     quality: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct CobaltResponse {
+    status: String,
+    url: Option<String>,
+}
+
 impl YouTubeClient {
     pub fn new(settings: &Settings) -> Result<Self, anyhow::Error> {
         let client = ClientBuilder::new()
@@ -122,8 +130,10 @@ impl YouTubeClient {
             api_key: settings.youtube.api_key.expose_secret().to_string(),
             invidious_instances: settings.youtube.invidious_instances.clone(),
             piped_instances: settings.youtube.piped_instances.clone(),
+            cobalt_instances: settings.youtube.cobalt_instances.clone(),
             current_invidious: std::sync::atomic::AtomicUsize::new(0),
             current_piped: std::sync::atomic::AtomicUsize::new(0),
+            current_cobalt: std::sync::atomic::AtomicUsize::new(0),
             request_timeout: Duration::from_secs(settings.youtube.request_timeout_seconds),
             max_retries: settings.youtube.max_retries,
             fallback_to_ytdlp: settings.youtube.fallback_to_ytdlp,
@@ -368,6 +378,10 @@ impl YouTubeClient {
             return Ok(url);
         }
 
+        if let Ok(url) = self.get_stream_url_cobalt(video_id).await {
+            return Ok(url);
+        }
+
         if self.fallback_to_ytdlp {
             if let Ok(url) = self.get_stream_url_ytdlp(video_id).await {
                 return Ok(url);
@@ -431,6 +445,55 @@ impl YouTubeClient {
             attempts += 1;
         }
         Err(anyhow::anyhow!("All Piped instances failed"))
+    }
+
+    async fn get_stream_url_cobalt(&self, video_id: &str) -> Result<String, anyhow::Error> {
+        if self.cobalt_instances.is_empty() {
+            return Err(anyhow::anyhow!("No Cobalt instances configured"));
+        }
+
+        let mut attempts = 0;
+        while attempts < self.cobalt_instances.len() {
+            let idx = self.current_cobalt.load(std::sync::atomic::Ordering::Relaxed) % self.cobalt_instances.len();
+            let base = &self.cobalt_instances[idx];
+            let body = serde_json::json!({
+                "url": format!("https://www.youtube.com/watch?v={}", video_id),
+                "downloadMode": "audio",
+                "audioFormat": "best",
+            });
+
+            match self
+                .client
+                .post(base)
+                .header("Accept", "application/json")
+                .json(&body)
+                .send()
+                .await
+            {
+                Ok(resp) if resp.status().is_success() => {
+                    let data: CobaltResponse = resp.json().await?;
+                    match data.url {
+                        Some(url)
+                            if data.status == "tunnel" || data.status == "redirect" =>
+                        {
+                            return Ok(url);
+                        }
+                        _ => {
+                            warn!("Cobalt instance {} returned status {} for {}", base, data.status, video_id);
+                        }
+                    }
+                }
+                Ok(resp) => {
+                    warn!("Cobalt returned status {} for {}", resp.status(), video_id);
+                }
+                Err(e) => {
+                    warn!("Cobalt request to {} failed: {}", base, e);
+                }
+            }
+            self.current_cobalt.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            attempts += 1;
+        }
+        Err(anyhow::anyhow!("All Cobalt instances failed"))
     }
 
     async fn get_stream_url_ytdlp(&self, video_id: &str) -> Result<String, anyhow::Error> {

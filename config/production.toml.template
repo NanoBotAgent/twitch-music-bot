@@ -55,6 +55,9 @@ piped_instances = [
   "https://piped.mha.fi",
   "https://piped.kavin.rocks"
 ]
+cobalt_instances = [
+  "https://cblt.fariz.dev"
+]
 fallback_to_ytdlp = true
 ytdlp_path = "/usr/local/bin/yt-dlp"
 request_timeout_seconds = 15

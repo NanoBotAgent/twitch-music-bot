@@ -76,6 +76,8 @@ pub struct YouTubeConfig {
     pub api_key: SecretString,
     pub invidious_instances: Vec<String>,
     pub piped_instances: Vec<String>,
+    #[serde(default)]
+    pub cobalt_instances: Vec<String>,
     pub fallback_to_ytdlp: bool,
     pub ytdlp_path: Option<String>,
     pub request_timeout_seconds: u64,
@@ -276,6 +278,9 @@ impl Default for Settings {
                     "https://pipedapi.adminforge.de".to_string(),
                     "https://api.piped.private.coffee".to_string(),
                     "https://pipedapi.reallyaweso.me".to_string(),
+                ],
+                cobalt_instances: vec![
+                    "https://cblt.fariz.dev".to_string(),
                 ],
                 fallback_to_ytdlp: true,
                 ytdlp_path: None,

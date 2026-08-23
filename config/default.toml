@@ -51,6 +51,9 @@ piped_instances = [
   "https://pipedapi.kavin.rocks",
   "https://piped-api.garudalinux.org"
 ]
+cobalt_instances = [
+  "https://cblt.fariz.dev"
+]
 fallback_to_ytdlp = true
 ytdlp_path = ""
 request_timeout_seconds = 15
