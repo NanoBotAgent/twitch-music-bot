@@ -65,9 +65,9 @@ export default function DashboardPage() {
   }
 
   async function clearQueue() {
-    if (!confirm("Clear the entire queue?")) return;
     try {
       await api("/api/v1/queue/clear", { method: "POST" });
+      flash("Queue cleared");
       await refresh();
     } catch (e) {
       flash(errorMessage(e));
@@ -93,11 +93,13 @@ export default function DashboardPage() {
         <div className="glass border-accent-500/40 px-5 py-3 text-sm text-accent-400">{notice}</div>
       )}
 
+      <OnboardingCard flash={flash} />
+
       <NowPlaying song={current?.song ?? null} requestedBy={current?.requester_name ?? null} onSkip={skip} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <RequestPanel onQueued={refresh} flash={flash} />
-        <QueuePanel queue={queue} onRemove={removeItem} onClear={clearQueue} />
+        <QueuePanel queue={queue} onRemove={removeItem} onClear={clearQueue} onRefresh={refresh} flash={flash} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -273,12 +275,18 @@ function QueuePanel({
   queue,
   onRemove,
   onClear,
+  onRefresh,
+  flash,
 }: {
   queue: QueuedSong[];
   onRemove: (id: string) => void;
-  onClear: () => void;
+  onClear: () => Promise<void>;
+  onRefresh: () => Promise<void>;
+  flash: (msg: string) => void;
 }) {
   const [order, setOrder] = useState<string[]>([]);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
 
   useEffect(() => {
     setOrder(queue.map((q) => q.queue_item_id));
@@ -293,16 +301,26 @@ function QueuePanel({
   }
 
   async function saveOrder() {
+    setSavingOrder(true);
     try {
       await api("/api/v1/queue/reorder", { method: "PUT", body: JSON.stringify({ order }) });
-      location.reload();
+      await onRefresh();
+      flash("Queue order saved");
     } catch {
-      flashSafe();
+      flash("Could not reorder the queue");
+    } finally {
+      setSavingOrder(false);
     }
   }
 
-  function flashSafe() {
-    alert("Could not reorder the queue");
+  function handleClear() {
+    if (!confirmClear) {
+      setConfirmClear(true);
+      setTimeout(() => setConfirmClear(false), 3000);
+      return;
+    }
+    setConfirmClear(false);
+    void onClear();
   }
 
   const byId = new Map(queue.map((q) => [q.queue_item_id, q]));
@@ -316,8 +334,11 @@ function QueuePanel({
           Queue ({queue.length})
         </h3>
         {queue.length > 0 && (
-          <button onClick={onClear} className="text-xs text-slate-500 transition hover:text-red-400">
-            Clear all
+          <button
+            onClick={handleClear}
+            className={`text-xs transition ${confirmClear ? "font-semibold text-red-400" : "text-slate-500 hover:text-red-400"}`}
+          >
+            {confirmClear ? "Click again to confirm" : "Clear all"}
           </button>
         )}
       </div>
@@ -346,8 +367,8 @@ function QueuePanel({
       </ul>
 
       {dirty && ordered.length > 0 && (
-        <button onClick={saveOrder} className="btn-primary mt-4 w-full py-2 text-xs">
-          Save new order
+        <button onClick={saveOrder} disabled={savingOrder} className="btn-primary mt-4 w-full py-2 text-xs">
+          {savingOrder ? "Saving..." : "Save new order"}
         </button>
       )}
     </section>
@@ -539,7 +560,13 @@ function ConnectionsPanel({ flash }: { flash: (m: string) => void }) {
           </button>
         </div>
 
-        <OverlayLinkRow />
+        <div className="flex items-center justify-between rounded-xl bg-slate-950/40 p-3">
+          <div>
+            <p className="text-sm font-medium text-slate-200">OBS overlay</p>
+            <p className="text-xs text-slate-500">Browser-source page that shows and plays music</p>
+          </div>
+          <CopyOverlayUrl label="Copy link" />
+        </div>
       </div>
 
       <p className="mt-4 rounded-xl bg-slate-950/60 p-3 text-xs leading-relaxed text-slate-500">
@@ -550,7 +577,7 @@ function ConnectionsPanel({ flash }: { flash: (m: string) => void }) {
   );
 }
 
-function OverlayLinkRow() {
+function CopyOverlayUrl({ label = "Copy overlay link" }: { label?: string }) {
   const [copied, setCopied] = useState(false);
   const streamerId = typeof window !== "undefined" ? getStreamerIdFromToken() : null;
 
@@ -564,15 +591,65 @@ function OverlayLinkRow() {
   }
 
   return (
-    <div className="flex items-center justify-between rounded-xl bg-slate-950/40 p-3">
-      <div>
-        <p className="text-sm font-medium text-slate-200">OBS overlay</p>
-        <p className="text-xs text-slate-500">Browser-source page that shows and plays music</p>
+    <button onClick={copy} disabled={!streamerId} className="btn-ghost shrink-0 text-xs">
+      {copied ? "Copied!" : label}
+    </button>
+  );
+}
+
+function OnboardingCard({ flash }: { flash: (m: string) => void }) {
+  const [hidden, setHidden] = useState(true);
+
+  useEffect(() => {
+    setHidden(window.localStorage.getItem("tmb_setup_done") === "1");
+  }, []);
+
+  if (hidden) return null;
+
+  function finish() {
+    window.localStorage.setItem("tmb_setup_done", "1");
+    setHidden(true);
+    flash("You're all set — have fun streaming!");
+  }
+
+  return (
+    <section className="glass p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-accent-400">
+            Getting started
+          </h3>
+          <p className="mt-1 text-sm text-slate-400">Three quick steps and song requests are live on your channel.</p>
+        </div>
+        <button onClick={finish} className="shrink-0 text-xs text-slate-500 transition hover:text-white">
+          Hide
+        </button>
       </div>
-      <button onClick={copy} disabled={!streamerId} className="btn-ghost shrink-0 text-xs">
-        {copied ? "Copied!" : "Copy link"}
-      </button>
-    </div>
+      <ol className="mt-4 grid gap-3 md:grid-cols-3">
+        <li className="rounded-xl bg-slate-950/50 p-4">
+          <p className="font-display text-xs font-semibold text-accent-400">1. Add the overlay to OBS</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+            Paste your overlay link into a browser source — that page is where requested songs play.
+          </p>
+          <div className="mt-3">
+            <CopyOverlayUrl />
+          </div>
+        </li>
+        <li className="rounded-xl bg-slate-950/50 p-4">
+          <p className="font-display text-xs font-semibold text-accent-400">2. Tell chat how to request</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+            Drop <code className="rounded bg-slate-900 px-1 py-0.5 font-mono text-accent-400">!sr &lt;song&gt;</code> in a
+            panel or your title so viewers know the command.
+          </p>
+        </li>
+        <li className="rounded-xl bg-slate-950/50 p-4">
+          <p className="font-display text-xs font-semibold text-accent-400">3. Tune your rules</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+            Set queue limits, cooldowns and filters under Request settings below.
+          </p>
+        </li>
+      </ol>
+    </section>
   );
 }
 
