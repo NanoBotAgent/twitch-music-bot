@@ -23,7 +23,7 @@ use axum::{
 use secrecy::ExposeSecret;
 use tokio::sync::{broadcast, mpsc};
 use tower_http::cors::AllowOrigin;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::api::ApiState;
 use crate::auth::AuthState;
@@ -140,9 +140,26 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // -- Serve ---------------------------------------------------------------------
+    // The primary listener follows the configured host (:: in production) because
+    // the reverse-proxy site reaches the service over IPv6. The alwaysdata
+    // supervisor however probes health over IPv4 loopback, so also try to bind a
+    // plain IPv4 listener. On dual-stack kernels the second bind fails with
+    // EADDRINUSE because the IPv6 socket already accepts IPv4, which is harmless.
     let addr: SocketAddr = format!("{}:{}", settings.server.host, settings.server.port).parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
     info!("listening on http://{addr}");
+
+    let v4_addr: SocketAddr = format!("0.0.0.0:{}", settings.server.port).parse()?;
+    let v4_listener = match tokio::net::TcpListener::bind(v4_addr).await {
+        Ok(l) => {
+            info!("listening on http://{v4_addr}");
+            Some(l)
+        }
+        Err(e) => {
+            warn!("IPv4 listener unavailable ({e}), staying IPv6-only");
+            None
+        }
+    };
 
     let shutdown = async {
         let ctrl_c = tokio::signal::ctrl_c();
@@ -150,9 +167,27 @@ async fn main() -> anyhow::Result<()> {
         info!("shutdown signal received");
     };
 
+    let v4_server = v4_listener.map(|l| {
+        let app_v4 = app.clone();
+        tokio::spawn(async move {
+            if let Err(e) = axum::serve(
+                l,
+                app_v4.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+            {
+                error!("IPv4 server stopped: {e}");
+            }
+        })
+    });
+
     axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(shutdown)
         .await?;
+
+    if let Some(handle) = v4_server {
+        handle.abort();
+    }
 
     // -- Teardown --------------------------------------------------------------------
     queue_manager.shutdown();
