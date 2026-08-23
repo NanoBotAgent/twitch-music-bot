@@ -219,9 +219,10 @@ function RequestPanel({
     const key = `${song.source}:${song.source_id}`;
     setQueuingKey(key);
     try {
+      const q = song.source === "youtube" ? `https://youtu.be/${song.source_id}` : `${song.title} ${song.artist}`;
       await api("/api/v1/requests", {
         method: "POST",
-        body: JSON.stringify({ query: `${song.title} ${song.artist}`, source_hint: song.source }),
+        body: JSON.stringify({ query: q, source_hint: song.source }),
       });
       flash(`Queued "${song.title}"`);
       setResults([]);

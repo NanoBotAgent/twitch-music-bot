@@ -749,7 +749,7 @@ pub mod history {
 
     pub async fn recent(pool: &PgPool, streamer_id: Uuid, limit: i64) -> anyhow::Result<Vec<HistoryRow>> {
         let rows = sqlx::query_as::<_, HistoryRow>(
-            "SELECT h.id, h.song_id, s.source, s.source_id, s.title, s.artist, s.duration_seconds, \
+            "SELECT h.id AS history_id, h.song_id, s.source, s.source_id, s.title, s.artist, s.duration_seconds, \
                s.thumbnail_url, s.explicit, s.metadata, \
                h.played_by_display_name, h.started_at, h.ended_at, h.was_skipped, h.skip_reason \
              FROM play_history h JOIN songs s ON s.id = h.song_id \

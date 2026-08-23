@@ -225,6 +225,20 @@ impl QueueManager {
             results.into_iter().next().ok_or(BotError::NotFound)?
         };
 
+        // Text-search results ship without durations; pull full metadata for
+        // YouTube tracks so the auto-advance timer has something to work with.
+        if best.song.duration_seconds.is_none() && best.song.source == MusicSource::YouTube {
+            match self.music_manager.youtube.get_video_info(&best.song.source_id).await {
+                Ok(info) => {
+                    best.song.duration_seconds = info.duration_seconds;
+                    if best.song.thumbnail_url.is_none() {
+                        best.song.thumbnail_url = info.thumbnail_url;
+                    }
+                }
+                Err(e) => debug!("duration enrichment failed for {}: {e:#}", best.song.source_id),
+            }
+        }
+
         // Explicit filter.
         if best.song.explicit && config.explicit_filter == "block" {
             debug!("explicit track filtered for streamer {streamer_id}: {}", best.song.title);
@@ -349,12 +363,13 @@ impl QueueManager {
             return Ok(());
         };
 
-        if let Some(dur) = current.song.duration_seconds {
-            let elapsed = (Utc::now() - started_at).num_seconds();
-            if elapsed > i64::from(dur) + 5 {
-                self.finalize_current(streamer_id, false, Some("ended")).await?;
-                let _ = self.notification_tx.send(QueueNotification::SongEnded(current.song.id)).await;
-            }
+        // Songs without a known duration get a hard 10-minute cap so they
+        // can never wedge the player forever.
+        let dur = current.song.duration_seconds.unwrap_or(600);
+        let elapsed = (Utc::now() - started_at).num_seconds();
+        if elapsed > i64::from(dur) + 5 {
+            self.finalize_current(streamer_id, false, Some("ended")).await?;
+            let _ = self.notification_tx.send(QueueNotification::SongEnded(current.song.id)).await;
         }
 
         Ok(())
