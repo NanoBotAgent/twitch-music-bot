@@ -429,6 +429,7 @@
       const S = YT.PlayerState;
       if (event.data === S.PLAYING) {
         isPlaying = true;
+        if (adState) adState.playingSeen = true;
         elements.statusDot.classList.remove('paused');
         updatePlayPauseButton();
         if (adState && adState.silenced && !adDetectedNow()) {
@@ -479,7 +480,9 @@
         adReloads: 0,
         silenced: false,
         gaveUpSwitch: false,
-        cooldownUntil: 0
+        cooldownUntil: 0,
+        playingSeen: false,
+        startedAt: Date.now()
       };
       embedLastTime = 0;
       embedMidAd = false;
@@ -501,6 +504,13 @@
 
     function embedTick() {
       if (!isEmbedMode()) return;
+
+      if (adState && !adState.playingSeen && Date.now() - adState.startedAt > 10000) {
+        console.warn('Embed never reached PLAYING within 10s, falling back to direct stream');
+        fallbackToDirect(currentSong, 'stall-timeout');
+        return;
+      }
+
       let state;
       try { state = ytPlayer.getPlayerState(); } catch (e) { return; }
       if (state !== 1) return;
