@@ -262,7 +262,7 @@ function RequestPanel({
 
       <ul className="mt-4 space-y-2">
         {results.map((r) => (
-          <li key={`${r.song.source}:${r.song.source_id}`} className="flex items-center gap-3 rounded-xl bg-slate-950/40 p-2.5">
+          <li key={`${r.song.source}:${r.song.source_id}`} className="flex items-center gap-3 min-w-0 rounded-xl bg-slate-950/40 p-2.5">
             <Thumbnail song={r.song} small />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-slate-200">{r.song.title}</p>
@@ -377,8 +377,8 @@ function QueuePanel({
 
       <ul className="mt-4 space-y-2">
         {ordered.map((item, index) => (
-          <li key={item.queue_item_id} className="flex items-center gap-3 rounded-xl bg-slate-950/40 p-2.5">
-            <span className="w-5 text-center font-display text-xs text-slate-500">{index + 1}</span>
+          <li key={item.queue_item_id} className="flex items-center gap-3 min-w-0 rounded-xl bg-slate-950/40 p-2.5">
+            <span className="shrink-0 w-5 text-center font-display text-xs text-slate-500">{index + 1}</span>
             <Thumbnail song={item.song} small />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-slate-200">{item.song.title}</p>
@@ -708,7 +708,7 @@ function HistoryPanel({ items }: { items: HistoryItem[] }) {
       </h3>
       <ul className="mt-4 space-y-2">
         {items.map((item) => (
-          <li key={item.history_id} className="flex items-center gap-3 rounded-xl bg-slate-950/40 p-2.5">
+          <li key={item.history_id} className="flex items-center gap-3 min-w-0 rounded-xl bg-slate-950/40 p-2.5">
             <span className="shrink-0 text-xs text-slate-600">
               {new Date(item.started_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
@@ -782,7 +782,7 @@ function BlockedUsersPanel({
 
       <ul className="mt-4 space-y-2">
         {items.map((u) => (
-          <li key={u.user_id} className="flex items-center justify-between rounded-xl bg-slate-950/40 p-2.5">
+          <li key={u.user_id} className="flex items-center justify-between min-w-0 rounded-xl bg-slate-950/40 p-2.5">
             <div className="min-w-0">
               <p className="truncate text-sm text-slate-300">{u.user_login}</p>
               {u.reason && <p className="truncate text-xs text-slate-500">{u.reason}</p>}
