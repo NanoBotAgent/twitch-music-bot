@@ -11,6 +11,7 @@ export default function DashboardPage() {
   const [blocked, setBlocked] = useState<BlockedUser[]>([]);
   const [config, setConfig] = useState<StreamerConfig | null>(null);
   const [notice, setNotice] = useState<{ text: string; kind: "ok" | "err" } | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const flash = useCallback((message: string, kind: "ok" | "err" = "ok") => {
     setNotice({ text: message, kind });
@@ -49,6 +50,11 @@ export default function DashboardPage() {
     const timer = setInterval(refresh, 15000);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   async function skip() {
     if (!current) return;
@@ -118,7 +124,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <RequestPanel onQueued={refresh} flash={flash} />
-        <QueuePanel queue={queue} onRemove={removeItem} onClear={clearQueue} onRefresh={refresh} flash={flash} />
+        <QueuePanel queue={queue} onRemove={removeItem} onClear={clearQueue} onRefresh={refresh} flash={flash} loading={loading} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -127,8 +133,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <HistoryPanel items={history} />
-        <BlockedUsersPanel items={blocked} onChanged={refresh} flash={flash} />
+        <HistoryPanel items={history} loading={loading} />
+        <BlockedUsersPanel items={blocked} onChanged={refresh} flash={flash} loading={loading} />
       </div>
     </main>
   );
@@ -182,6 +188,63 @@ function Thumbnail({ song, small }: { song: Song | null; small?: boolean }) {
     return <img src={song.thumbnail_url} alt="" className={`${size} shrink-0 object-cover`} />;
   }
   return <div className={`${size} shrink-0 bg-slate-800`} />;
+}
+
+// ---------------------------------------------------------------------------
+
+function QueueSkeleton({ count = 5 }: { count?: number }) {
+  return (
+    <ul className="mt-4 space-y-2" aria-hidden="true">
+      {Array.from({ length: count }).map((_, i) => (
+        <li key={i} className="flex items-center gap-3 min-w-0 rounded-xl bg-slate-950/40 p-2.5 animate-pulse">
+          <span className="shrink-0 w-5" />
+          <div className="h-10 w-10 rounded-lg shrink-0 bg-slate-800" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-4 w-3/4 bg-slate-800 rounded" />
+            <div className="h-3 w-1/2 bg-slate-800 rounded" />
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <div className="h-9 w-9 rounded-lg bg-slate-800" />
+            <div className="h-9 w-9 rounded-lg bg-slate-800" />
+            <div className="h-9 w-9 rounded-lg bg-slate-800" />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function HistorySkeleton({ count = 5 }: { count?: number }) {
+  return (
+    <ul className="mt-4 space-y-2" aria-hidden="true">
+      {Array.from({ length: count }).map((_, i) => (
+        <li key={i} className="flex items-center gap-3 min-w-0 rounded-xl bg-slate-950/40 p-2.5 animate-pulse">
+          <span className="shrink-0 w-14 h-3 bg-slate-800 rounded" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-4 w-5/6 bg-slate-800 rounded" />
+            <div className="h-3 w-2/3 bg-slate-800 rounded" />
+          </div>
+          <span className="shrink-0 w-16 h-3 bg-slate-800 rounded" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function BlockedSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <ul className="mt-4 space-y-2" aria-hidden="true">
+      {Array.from({ length: count }).map((_, i) => (
+        <li key={i} className="flex items-center justify-between min-w-0 rounded-xl bg-slate-950/40 p-2.5 animate-pulse">
+          <div className="min-w-0">
+            <div className="h-4 w-1/3 bg-slate-800 rounded" />
+            <div className="h-3 w-2/5 bg-slate-800 rounded mt-1" />
+          </div>
+          <div className="h-4 w-16 bg-slate-800 rounded shrink-0" />
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -309,12 +372,14 @@ function QueuePanel({
   onClear,
   onRefresh,
   flash,
+  loading,
 }: {
   queue: QueuedSong[];
   onRemove: (id: string) => void;
   onClear: () => Promise<void>;
   onRefresh: () => Promise<void>;
   flash: (msg: string, kind?: "ok" | "err") => void;
+  loading?: boolean;
 }) {
   const [order, setOrder] = useState<string[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -358,6 +423,19 @@ function QueuePanel({
   const byId = new Map(queue.map((q) => [q.queue_item_id, q]));
   const ordered = order.map((id) => byId.get(id)).filter(Boolean) as QueuedSong[];
   const dirty = order.join(",") !== queue.map((q) => q.queue_item_id).join(",");
+
+  if (loading) {
+    return (
+      <section className="glass p-4 sm:p-6">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
+            Queue
+          </h3>
+        </div>
+        <QueueSkeleton />
+      </section>
+    );
+  }
 
   return (
     <section className="glass p-4 sm:p-6">
@@ -700,7 +778,18 @@ function getStreamerIdFromToken(): string | null {
 
 // ---------------------------------------------------------------------------
 
-function HistoryPanel({ items }: { items: HistoryItem[] }) {
+function HistoryPanel({ items, loading }: { items: HistoryItem[]; loading?: boolean }) {
+  if (loading) {
+    return (
+      <section className="glass p-4 sm:p-6">
+        <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
+          Recently played
+        </h3>
+        <HistorySkeleton />
+      </section>
+    );
+  }
+
   return (
     <section className="glass p-4 sm:p-6">
       <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
@@ -729,10 +818,12 @@ function BlockedUsersPanel({
   items,
   onChanged,
   flash,
+  loading,
 }: {
   items: BlockedUser[];
   onChanged: () => Promise<void>;
   flash: (m: string, kind?: "ok" | "err") => void;
+  loading?: boolean;
 }) {
   const [userId, setUserId] = useState("");
   const [login, setLogin] = useState("");
@@ -758,6 +849,30 @@ function BlockedUsersPanel({
     } catch (e) {
       flash(errorMessage(e), "err");
     }
+  }
+
+  if (loading) {
+    return (
+      <section className="glass p-4 sm:p-6">
+        <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
+          Blocked users
+        </h3>
+        <BlockedSkeleton />
+        <form
+          className="mt-4 flex flex-col gap-2 sm:flex-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void block();
+          }}
+        >
+          <input disabled placeholder="Twitch login" className="input" />
+          <input disabled placeholder="Twitch user id" className="input" />
+          <button type="submit" disabled className="btn-primary shrink-0 opacity-50">
+            Block
+          </button>
+        </form>
+      </section>
+    );
   }
 
   return (
