@@ -39,3 +39,71 @@ body {
   /* text-base on phones keeps iOS Safari from zooming in on focus */
   @apply w-full rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-2.5 text-base text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-accent-500/70 focus:ring-2 focus:ring-accent-500/20 sm:text-sm;
 }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-track {
+  height: 6px;
+  background: rgb(51 65 85);
+  border-radius: 3px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: rgb(16 185 129);
+  border-radius: 50%;
+  margin-top: -6px;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 3px 6px rgba(16, 185, 129, 0.4);
+}
+
+input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(1.25);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: rgb(51 65 85);
+  border-radius: 3px;
+  border: none;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: rgb(16 185 129);
+  border-radius: 50%;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 3px 6px rgba(16, 185, 129, 0.4);
+}
+
+input[type="range"]:focus {
+  outline: none;
+}
+
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgb(16 185 129 / 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgb(16 185 129 / 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+}

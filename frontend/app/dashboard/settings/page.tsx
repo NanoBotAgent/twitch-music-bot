@@ -301,7 +301,8 @@ function SliderField({
         max={max}
         step={step}
         onChange={(e) => onChange(Number.parseFloat(e.target.value))}
-        className="w-full h-2 appearance-none bg-slate-800 rounded-full accent-accent-500"
+        className="w-full h-6"
+        style={{ accentColor: "rgb(16 185 129)" }}
       />
     </label>
   );
