@@ -117,6 +117,19 @@ export async function getMe(): Promise<import("./types").Me> {
   return api<import("./types").Me>("/auth/me");
 }
 
+export async function getConfig(): Promise<import("./types").StreamerConfig> {
+  return api<import("./types").StreamerConfig>("/api/v1/config");
+}
+
+export async function updateConfig(
+  config: import("./types").StreamerConfig
+): Promise<import("./types").StreamerConfig> {
+  return api<import("./types").StreamerConfig>("/api/v1/config", {
+    method: "PUT",
+    body: JSON.stringify(config),
+  });
+}
+
 export function wsUrl(path: string): string {
   return `${API_URL.replace(/^http/, "ws")}${path}`;
 }
