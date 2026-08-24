@@ -179,21 +179,24 @@ export default function SettingsPage() {
           Playback
         </h3>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <NumberField
-            label="Default volume (0-1)"
-            value={Math.round(config.default_volume * 100)}
+        <div className="mt-4 space-y-5">
+          <SliderField
+            label="Default volume"
+            value={config.default_volume}
             min={0}
-            max={100}
-            onChange={(v) => setConfig({ ...config, default_volume: v / 100 })}
+            max={1}
+            step={0.05}
+            onChange={(v) => setConfig({ ...config, default_volume: v })}
+            format={(v) => `${Math.round(v * 100)}%`}
           />
-          <NumberField
-            label="Crossfade (seconds)"
-            value={Math.round(config.crossfade_seconds * 10) / 10}
+          <SliderField
+            label="Crossfade"
+            value={config.crossfade_seconds}
             min={0}
             max={10}
             step={0.5}
             onChange={(v) => setConfig({ ...config, crossfade_seconds: v })}
+            format={(v) => `${v}s`}
           />
         </div>
 
@@ -263,6 +266,42 @@ function NumberField({
           if (!Number.isNaN(v)) onChange(v);
         }}
         className="input"
+      />
+    </label>
+  );
+}
+
+function SliderField({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step = 0.01,
+  format,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  step?: number;
+  format?: (value: number) => string;
+}) {
+  return (
+    <label className="block">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs font-medium text-slate-500">{label}</span>
+        <span className="text-xs font-mono text-accent-400">{format ? format(value) : value}</span>
+      </div>
+      <input
+        type="range"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => onChange(Number.parseFloat(e.target.value))}
+        className="w-full h-2 appearance-none bg-slate-800 rounded-full accent-accent-500"
       />
     </label>
   );
