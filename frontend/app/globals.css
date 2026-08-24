@@ -24,7 +24,7 @@ body {
 }
 
 .glass {
-  @apply bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl;
+  @apply bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl overflow-hidden;
 }
 
 .btn-primary {

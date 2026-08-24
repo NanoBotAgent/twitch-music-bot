@@ -104,7 +104,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="grid gap-6">
+    <main className="grid gap-6 min-w-0 overflow-x-hidden">
       {notice && (
         <div
           role="status"
