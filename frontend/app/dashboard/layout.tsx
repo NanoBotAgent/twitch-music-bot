@@ -52,7 +52,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               </>
             )}
-            <button onClick={signOut} className="btn-ghost px-3 py-1.5 text-xs">
+            <button
+              onClick={signOut}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-rose-500/60 hover:bg-rose-500/10 hover:text-rose-400"
+            >
               Sign out
             </button>
           </div>
