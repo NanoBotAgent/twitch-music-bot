@@ -344,11 +344,17 @@ function Toggle({
 }) {
   return (
     <label className="mt-5 flex cursor-pointer items-start gap-3">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
-      <span className="mt-0.5 h-5 w-9 shrink-0 rounded-full bg-slate-700 p-0.5 transition peer-checked:bg-accent-500">
-        <span className="block h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4" />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="peer absolute opacity-0 h-5 w-9"
+        aria-hidden="true"
+      />
+      <span className="mt-0.5 h-5 w-9 shrink-0 rounded-full bg-slate-700 p-0.5 transition peer-checked:bg-accent-500 pointer-events-none">
+        <span className="block h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4 pointer-events-none" />
       </span>
-      <span>
+      <span className="pointer-events-none">
         <span className="block text-sm text-slate-200">{label}</span>
         {hint && <span className="block text-xs text-slate-500">{hint}</span>}
       </span>
