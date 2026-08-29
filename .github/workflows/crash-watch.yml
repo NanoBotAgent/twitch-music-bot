@@ -1,0 +1,119 @@
+name: Crash Watch
+
+# Watches the alwaysdata backend health. On a failure it captures the service
+# logs over WebDAV, saves them as a run artifact, restarts the service via the
+# alwaysdata API, and makes the run noticeable (fail was caught + restarted).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check backend health
+        id: health
+        run: |
+          set -u
+          URL="https://twitch-bot.alwaysdata.net/health"
+          CODE=$(curl -sS --max-time 15 -o /tmp/health.json -w '%{http_code}' "$URL" || echo "000")
+          echo "health_http=$CODE"
+          echo "body: $(head -c 300 /tmp/health.json 2>/dev/null || true)"
+          if [ "$CODE" = "200" ]; then
+            echo "down=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "DOWN (http $CODE)"
+            echo "down=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch service logs over WebDAV
+        if: steps.health.outputs.down == 'true'
+        id: logs
+        env:
+          AD_WEBDAV_PASSWORD: ${{ secrets.ALWAYSDATA_WEBDAV_PASSWORD }}
+        run: |
+          set -uo pipefail
+          AUTH="twitch-bot:${AD_WEBDAV_PASSWORD}"
+          BASE="https://webdav-twitch-bot.alwaysdata.net"
+          export TZ="Europe/Paris"
+          Y=$(date +%Y)
+          TODAY=$(date +%F)
+          YEST=$(date -d "yesterday" +%F)
+          mkdir -p crash-logs
+          echo "fetching dates: $TODAY and $YEST (Paris)"
+          : > "crash-logs/service.log"
+          for d in "$TODAY" "$YEST"; do
+            PATHLOG="/admin/logs/services/${Y}/29147-${d}.log"
+            echo "== GET $PATHLOG =="
+            code=$(curl -sS --basic --user "$AUTH" -o /tmp/day.log -w '%{http_code}' "$BASE$PATHLOG" || echo "000")
+            echo "  -> http $code, $(wc -l < /tmp/day.log 2>/dev/null || echo 0) lines"
+            if [ "$code" = "200" ]; then
+              echo "===== ${d} =====" >> crash-logs/service.log
+              cat /tmp/day.log >> crash-logs/service.log
+              echo "" >> crash-logs/service.log
+            fi
+          done
+          echo "---- last 80 lines ----"
+          tail -n 80 crash-logs/service.log || true
+          if [ ! -s crash-logs/service.log ]; then
+            echo "(no log content could be fetched)" > crash-logs/service.log
+          fi
+          LINES=$(wc -l < crash-logs/service.log)
+          echo "log_lines=$LINES" >> "$GITHUB_OUTPUT"
+          echo "captured $LINES total log lines"
+
+      - name: Upload crash logs artifact
+        if: steps.health.outputs.down == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-logs-${{ github.run_id }}
+          path: crash-logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Restart alwaysdata service
+        if: steps.health.outputs.down == 'true'
+        id: restart
+        env:
+          AD_API_KEY: ${{ secrets.ALWAYSDATA_API_KEY }}
+        run: |
+          set -uo pipefail
+          RESP=$(curl -sS --max-time 30 -u "${AD_API_KEY}:" \
+            -X POST "https://api.alwaysdata.com/v1/service/29147/restart/" \
+            -w '\nHTTP:%{http_code}')
+          CODE=${RESP##*HTTP:}
+          echo "restart http: $CODE"
+          echo "restart=restarted" >> "$GITHUB_OUTPUT"
+
+      - name: Wait and verify recovery
+        if: steps.health.outputs.down == 'true'
+        run: |
+          set -u
+          for i in $(seq 1 24); do
+            sleep 10
+            CODE=$(curl -sS --max-time 15 -o /tmp/h.json -w '%{http_code}' \
+              "https://twitch-bot.alwaysdata.net/health" || echo "000")
+            if [ "$CODE" = "200" ]; then
+              echo "RECOVERED after ~$((i * 10))s"
+              echo "recovery=recovered" >> "$GITHUB_OUTPUT" 2>/dev/null || true
+              echo "recovered=true" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            echo "[${i}] still down (http $CODE)"
+          done
+          echo "did not recover in ~240s"
+          exit 1
+
+      - name: Summary
+        if: steps.health.outputs.down == 'true'
+        run: |
+          {
+            echo "## Crash watchdog"
+            echo "- Detected DOWN: yes"
+            echo "- Logs captured: ${{ steps.logs.outputs.log_lines || '0' }} lines (artifact above)"
+            echo "- Restart: ${{ steps.restart.outputs.restart || 'n/a' }}"
+            echo "- Recovery: ${{ env.recovered || 'unknown' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
