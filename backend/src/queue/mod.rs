@@ -204,9 +204,15 @@ impl QueueManager {
             return Err(BotError::QueueFull);
         }
 
-        // Direct links are resolved against their source; everything else
-        // goes through multi-source search.
-        let mut best = if query.starts_with("http://") || query.starts_with("https://") {
+        // Direct links are resolved against their source unless disabled by
+        // config; everything else goes through multi-source search.
+        let is_direct = query.starts_with("http://") || query.starts_with("https://");
+        if is_direct && !config.allow_direct_links && !user.is_mod {
+            metrics::record_queue_operation("add_direct_disabled", false);
+            return Err(BotError::DirectLinksDisabled);
+        }
+
+        let mut best = if is_direct {
             let Some((source, id_or_url)) = detect_source(query) else {
                 return Err(BotError::NotFound);
             };
@@ -304,7 +310,7 @@ impl QueueManager {
 
     pub async fn get_queue(&self, streamer_id: Uuid) -> anyhow::Result<Vec<QueuedSong>> {
         let config = self.config_for(streamer_id).await?;
-        let rows = database::queue::get_queue(&self.pool, streamer_id).await?;
+        let rows = database::queue::get_queue(&self.pool, streamer_id, &config.queue_mode).await?;
         let required = self.required_votes(streamer_id, &config).await;
         Ok(rows.into_iter().map(|r| r.into_queued_song(required)).collect())
     }
@@ -377,11 +383,12 @@ impl QueueManager {
 
     /// Pops the next pending item and begins playing it.
     async fn start_next_song(&self, streamer_id: Uuid) -> anyhow::Result<Option<QueuedSong>> {
-        let Some(row) = database::queue::next_pending(&self.pool, streamer_id).await? else {
+        let config = self.config_for(streamer_id).await?;
+
+        let Some(row) = database::queue::next_pending(&self.pool, streamer_id, &config.queue_mode).await? else {
             return Ok(None);
         };
 
-        let config = self.config_for(streamer_id).await?;
         let mut song = row.clone().into_queued_song(self.required_votes(streamer_id, &config).await);
 
         // Resolve the stream URL BEFORE flipping state so failures mark the
@@ -572,7 +579,7 @@ impl QueueManager {
         let config = self.config_for(streamer_id).await?;
         let required = self.required_votes(streamer_id, &config).await;
 
-        Ok(database::queue::get_queue(&self.pool, streamer_id)
+        Ok(database::queue::get_queue(&self.pool, streamer_id, &config.queue_mode)
             .await?
             .into_iter()
             .map(|row| {

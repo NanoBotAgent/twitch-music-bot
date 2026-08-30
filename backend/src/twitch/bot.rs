@@ -136,6 +136,7 @@ async fn handle_privmsg(ctx: &ChatContext, pm: &PrivmsgMessage) -> anyhow::Resul
                 }
                 Err(BotError::RateLimited) => debug!("{} hit rate limit", user.login),
                 Err(BotError::QueueFull) => debug!("queue full for #{}", ctx.channel_login),
+                Err(BotError::DirectLinksDisabled) => debug!("direct links disabled for #{}", ctx.channel_login),
                 Err(e) => {
                     debug!("request failed for {}: {e}", user.login);
                     metrics::record_queue_operation("chat_add", false);

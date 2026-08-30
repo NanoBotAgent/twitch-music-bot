@@ -1,8 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, getConfig, updateConfig } from "@/lib/api";
+import { ApiError, getConfig, updateConfig } from "@/lib/api";
 import type { StreamerConfig } from "@/lib/types";
+
+const QUEUE_MODES = [
+  { value: "fifo", label: "First In, First Out" },
+  { value: "priority", label: "Priority (votes first)" },
+  { value: "random", label: "Random order" },
+] as const;
 
 export default function SettingsPage() {
   const [config, setConfig] = useState<StreamerConfig | null>(null);
@@ -115,6 +121,21 @@ export default function SettingsPage() {
         </div>
 
         <label className="mt-4 block">
+          <span className="mb-1.5 block text-xs font-medium text-slate-500">Queue mode</span>
+          <select
+            value={config.queue_mode}
+            onChange={(e) => setConfig({ ...config, queue_mode: e.target.value })}
+            className="input"
+          >
+            {QUEUE_MODES.map((mode) => (
+              <option key={mode.value} value={mode.value}>
+                {mode.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="mt-4 block">
           <span className="mb-1.5 block text-xs font-medium text-slate-500">Explicit content</span>
           <select
             value={config.explicit_filter}
@@ -131,6 +152,30 @@ export default function SettingsPage() {
           hint="Chat can vote to skip with !voteskip"
           checked={config.vote_skip_enabled}
           onChange={(v) => setConfig({ ...config, vote_skip_enabled: v })}
+        />
+
+        {config.vote_skip_enabled && (
+          <div className="mt-5">
+            <SliderField
+              label="Vote skip threshold"
+              value={config.vote_skip_threshold}
+              min={0.05}
+              max={1}
+              step={0.05}
+              onChange={(v) => setConfig({ ...config, vote_skip_threshold: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+            <p className="mt-1.5 text-xs text-slate-500">
+              Share of chatters that must type !voteskip to skip the current track.
+            </p>
+          </div>
+        )}
+
+        <Toggle
+          label="Allow direct links"
+          hint="Let chat request with a raw YouTube, Spotify or SoundCloud URL"
+          checked={config.allow_direct_links}
+          onChange={(v) => setConfig({ ...config, allow_direct_links: v })}
         />
 
         <h3 className="mt-8 font-display text-sm font-semibold uppercase tracking-wider text-slate-400">
@@ -348,8 +393,7 @@ function Toggle({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="peer absolute opacity-0 h-5 w-9"
-        aria-hidden="true"
+        className="peer sr-only"
       />
       <span className="mt-0.5 h-5 w-9 shrink-0 rounded-full bg-slate-700 p-0.5 transition peer-checked:bg-accent-500 pointer-events-none">
         <span className="block h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4 pointer-events-none" />

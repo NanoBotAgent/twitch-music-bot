@@ -165,6 +165,11 @@ async fn add_request(
             Json(ApiResponse::<()>::err("NO_MATCH", "No matching song found")),
         )
             .into_response(),
+        Err(twitch_music_shared::BotError::DirectLinksDisabled) => (
+            StatusCode::FORBIDDEN,
+            Json(ApiResponse::<()>::err("DIRECT_LINKS_DISABLED", "Direct links are disabled")),
+        )
+            .into_response(),
         Err(e) => internal_error("add_request failed", e.into()),
     }
 }

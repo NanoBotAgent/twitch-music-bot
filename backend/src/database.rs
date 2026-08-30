@@ -687,10 +687,21 @@ pub mod queue {
         Ok(r.map(|(t,)| t))
     }
 
-    pub async fn get_queue(pool: &PgPool, streamer_id: Uuid) -> anyhow::Result<Vec<QueueRow>> {
+    /// Maps a queue_mode string to a safe ORDER BY clause. Unknown values fall
+    /// back to simple FIFO (position order) to avoid SQL injection.
+    fn order_clause(mode: &str) -> &'static str {
+        match mode {
+            "random" => "RANDOM()",
+            "priority" => "q.priority DESC, q.position ASC",
+            _ => "q.position ASC",
+        }
+    }
+
+    pub async fn get_queue(pool: &PgPool, streamer_id: Uuid, mode: &str) -> anyhow::Result<Vec<QueueRow>> {
         let rows = sqlx::query_as::<_, QueueRow>(&format!(
             "{JOIN_SELECT} WHERE q.streamer_id = $1 AND q.status = 'pending' \
-             ORDER BY q.priority DESC, q.position ASC"
+             ORDER BY {}",
+            order_clause(mode)
         ))
         .bind(streamer_id)
         .fetch_all(pool)
@@ -729,10 +740,11 @@ pub mod queue {
         Ok(())
     }
 
-    pub async fn next_pending(pool: &PgPool, streamer_id: Uuid) -> anyhow::Result<Option<QueueRow>> {
+    pub async fn next_pending(pool: &PgPool, streamer_id: Uuid, mode: &str) -> anyhow::Result<Option<QueueRow>> {
         let r = sqlx::query_as::<_, QueueRow>(&format!(
             "{JOIN_SELECT} WHERE q.streamer_id = $1 AND q.status = 'pending' \
-             ORDER BY q.priority DESC, q.position ASC LIMIT 1"
+             ORDER BY {} LIMIT 1",
+            order_clause(mode)
         ))
         .bind(streamer_id)
         .fetch_optional(pool)

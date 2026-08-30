@@ -182,4 +182,6 @@ pub enum BotError {
     NotFound,
     #[error("Queue is full")]
     QueueFull,
+    #[error("Direct links are disabled")]
+    DirectLinksDisabled,
 }
