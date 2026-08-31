@@ -50,3 +50,7 @@ build/
 
 # Overlay build
 overlay/dist/
+
+# Python
+__pycache__/
+*.pyc

@@ -1,10 +1,13 @@
 import base64
 import json
+import os
 import urllib.error
 import urllib.request
 
 API = "https://api.alwaysdata.com" + "/v1"
-KEY = "f8659c49c25e498aa62af2f35c28bbff"
+KEY = os.environ.get("AD_API_KEY", "")
+if not KEY:
+    raise SystemExit("AD_API_KEY env var not set")
 AUTH = base64.b64encode(f"{KEY}:".encode()).decode()
 
 
